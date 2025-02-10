@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import PassiveAggressiveClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 
@@ -17,34 +18,58 @@ df1['label'] = 'Fake'
 # Concatenate the DataFrames
 df = pd.concat([df, df1])
 
-
 # Extract features and labels
 X = df['text']
 y = df['label']
 
-
-
-# Split the dataset into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
 # Initialize the TfidfVectorizer
 tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_df=0.7)
 
-# Fit and transform the training set, transform the test set
-tfidf_train = tfidf_vectorizer.fit_transform(X_train)
-tfidf_test = tfidf_vectorizer.transform(X_test)
-
 # Initialize the PassiveAggressiveClassifier
 pac = PassiveAggressiveClassifier(max_iter=50)
-pac.fit(tfidf_train, y_train)
 
-# Predict on the test set
-y_pred = pac.predict(tfidf_test)
+# Initialize StratifiedKFold
+skf = StratifiedKFold(n_splits=5)
 
-# Calculate accuracy
-score = accuracy_score(y_test, y_pred)
-print(f'Accuracy: {score * 100:.2f}%')
+# Arrays to store the scores
+accuracy_scores = []
+conf_matrices = []
 
-# Build confusion matrix
-conf_matrix = confusion_matrix(y_test, y_pred)
-print(f'Confusion Matrix:\n{conf_matrix}')
+# Perform Stratified K-Fold Cross-Validation
+for train_index, test_index in skf.split(X, y):
+    X_train, X_test = X[train_index], X[test_index]
+    y_train, y_test = y[train_index], y[test_index]
+
+    # Fit and transform the data
+    tfidf_train = tfidf_vectorizer.fit_transform(X_train)
+    tfidf_test = tfidf_vectorizer.transform(X_test)
+
+    # Train the classifier
+    pac.fit(tfidf_train, y_train)
+
+    # Predict on the test set
+    y_pred = pac.predict(tfidf_test)
+
+    # Calculate accuracy
+    score = accuracy_score(y_test, y_pred)
+    accuracy_scores.append(score)
+
+    # Build confusion matrix
+    conf_matrix = confusion_matrix(y_test, y_pred)
+    conf_matrices.append(conf_matrix)
+
+# Calculate the mean accuracy
+mean_accuracy = np.mean(accuracy_scores)
+print(f'Mean Accuracy: {mean_accuracy * 100:.2f}%')
+
+# Aggregate confusion matrices
+total_conf_matrix = np.sum(conf_matrices, axis=0)
+print(f'Total Confusion Matrix:\n{total_conf_matrix}')
+
+# Visualize confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(total_conf_matrix, annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix')
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.show()
