@@ -19,8 +19,8 @@ df1['label'] = 'Fake'
 df = pd.concat([df, df1])
 
 # Extract features and labels
-X = df['text']
-y = df['label']
+X = df['text'].values
+y = df['label'].values
 
 # Initialize the TfidfVectorizer
 tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_df=0.7)
@@ -65,6 +65,14 @@ print(f'Mean Accuracy: {mean_accuracy * 100:.2f}%')
 # Aggregate confusion matrices
 total_conf_matrix = np.sum(conf_matrices, axis=0)
 print(f'Total Confusion Matrix:\n{total_conf_matrix}')
+
+# Visualize accuracy scores
+plt.figure(figsize=(10, 5))
+plt.bar(range(1, len(accuracy_scores) + 1), accuracy_scores)
+plt.xlabel('Fold')
+plt.ylabel('Accuracy')
+plt.title('Accuracy Scores for Each Fold')
+plt.show()
 
 # Visualize confusion matrix
 plt.figure(figsize=(8, 6))
