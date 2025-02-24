@@ -1,0 +1,7 @@
+Matplotlib
+numpy
+opencv-python
+scikit-learn
+split-folders
+tensorflow
+tensorflow-GPU
