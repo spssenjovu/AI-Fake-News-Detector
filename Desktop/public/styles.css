@@ -15,12 +15,28 @@ body {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     width: 300px;
 }
+.register-container{
+    background-color: white;
+    padding: 20px;
+    border-radius: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    width: 300px;
+}
 
 .login-container h2 {
     margin-bottom: 20px;
 }
 
+.register-container h2 {
+    margin-bottom: 20px;
+}
+
 .login-container label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.register-container label {
     display: block;
     margin-bottom: 5px;
 }
@@ -33,10 +49,28 @@ body {
     border-radius: 5px;
 }
 
+.register-container input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
 .login-container button {
     width: 100%;
     padding: 10px;
-    background-color: #4CAF50;
+    background-color: blue;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.register-container button {
+    width: 100%;
+    padding: 10px;
+    background-color: blue;
     color: white;
     border: none;
     border-radius: 5px;
@@ -44,5 +78,35 @@ body {
 }
 
 .login-container button:hover {
-    background-color: #45a049;
+    background-color: blue;
+}
+
+.register-container button:hover {
+    background-color: blue;
+}
+
+nav {
+    background-color: blue;
+    padding: 10px;
+}
+
+nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+}
+
+nav ul li {
+    margin-right: 20px;
+}
+
+nav ul li a {
+    color: white;
+    text-decoration: none;
+    font-size: 18px;
+}
+
+nav ul li a:hover {
+    text-decoration: underline;
 }
