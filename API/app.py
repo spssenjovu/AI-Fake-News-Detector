@@ -9,8 +9,8 @@ app.secret_key = 'your_secret_key'  # Change this to a secure random key
 csrf = CSRFProtect(app)
 
 # Load the trained model and vectorizer
-model = pickle.load(open('Models/pac_model.pkl', 'rb'))  # Update the path to your model file
-vectorizer = pickle.load(open('Models/tfidf_vectorizer.pkl', 'rb'))  # Update the path to your vectorizer file
+# model = pickle.load(open('path/to/pac_model.pkl', 'rb'))  # Update the path to your model file
+# vectorizer = pickle.load(open('path/to/tfidf_vectorizer.pkl', 'rb'))  # Update the path to your vectorizer file
 
 # Mock user data for example purposes
 users = {
@@ -54,4 +54,4 @@ def predict():
     return jsonify({'prediction': prediction[0]})
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=8080, debug=True)  # Run the Flask app
+    app.run(debug=True)  # Run the Flask app

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI News Detector</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>AI News Detector</h1>
+    </header>
+    <main>
+        <form method="post" action="/predict">
+            <label for="news">Enter News Text:</label>
+            <textarea id="news" name="news" rows="10" cols="30" required></textarea>
+            <button type="submit">Detect</button>
+        </form>
+    </main>
+    <footer>
+        <p>Developed by Simon | University of Plymouth</p>
+    </footer>
+</body>
+</html>

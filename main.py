@@ -3,11 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
+import itertools
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import PassiveAggressiveClassifier
 from sklearn.model_selection import cross_val_score
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score, classification_report
 
 # Load the dataset
 df_true = pd.read_csv('True.csv')
@@ -20,9 +21,12 @@ df_fake['label'] = 'Fake'
 # Concatenate the DataFrames
 df = pd.concat([df_true, df_fake])
 
+
+
 # Extract features and labels
 X = df['text'].values
 y = df['label'].values
+
 
 # Split the data into 60% training and 40% testing
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, stratify=y, random_state=42)
@@ -72,48 +76,46 @@ print(f'Training ROC AUC Score: {train_roc_auc * 100:.2f}%')
 # Print cross-validation scores
 print(f'Cross-Validation Accuracy Scores: {cv_scores}')
 
-# Build confusion matrix for the training set
-train_conf_matrix = confusion_matrix(y_train, y_train_pred)
-print(f'Training Confusion Matrix:\n{train_conf_matrix}')
 
-# Visualize confusion matrix for the training set
-plt.figure(figsize=(8, 6))
-sns.heatmap(train_conf_matrix, annot=True, fmt='d', cmap='Blues')
-plt.title('Training Confusion Matrix')
-plt.xlabel('Predicted Label')
-plt.ylabel('True Label')
-plt.show()
 
-# Calculate the accuracy on the test set
-test_accuracy = accuracy_score(y_test, y_test_pred)
-print(f'Testing Accuracy: {test_accuracy * 100:.2f}%')
 
-# Precision score on the test set
-test_precision = precision_score(y_test, y_test_pred, pos_label='True')
-print(f'Testing Precision: {test_precision * 100:.2f}%')
+# Classification report 
+print(classification_report(y_test, y_test_pred))
 
-# Recall score on the test set
-test_recall = recall_score(y_test, y_test_pred, pos_label='True')
-print(f'Testing Recall: {test_recall * 100:.2f}%')
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
 
-# F1 score on the test set
-test_f1 = f1_score(y_test, y_test_pred, pos_label='True')
-print(f'Testing F1 Score: {test_f1 * 100:.2f}%')
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
 
-# ROC AUC score on the test set
-test_roc_auc = roc_auc_score([1 if label == 'True' else 0 for label in y_test], [1 if label == 'True' else 0 for label in y_test_pred])
-print(f'Testing ROC AUC Score: {test_roc_auc * 100:.2f}%')
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, cm[i, j],
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
 
-# Build confusion matrix for the testing set
-test_conf_matrix = confusion_matrix(y_test, y_test_pred)
-print(f'Testing Confusion Matrix:\n{test_conf_matrix}')
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
 
 # Visualize confusion matrix for the testing set
-plt.figure(figsize=(8, 6))
-sns.heatmap(test_conf_matrix, annot=True, fmt='d', cmap='Blues')
-plt.title('Testing Confusion Matrix')
-plt.xlabel('Predicted Label')
-plt.ylabel('True Label')
+#accuracy score on the test data
+score = accuracy_score(y_test, y_test_pred)
+print(f'Accuracy: {round(score*100,2)}%')
+cm = confusion_matrix(y_test, y_test_pred)
+plot_confusion_matrix(cm, classes=['FAKE Data', 'REAL Data'])
 plt.show()
 
 # Save the trained model

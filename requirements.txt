@@ -5,3 +5,7 @@ scikit-learn
 split-folders
 tensorflow
 tensorflow-GPU
+Flask
+pymongo[srv]
+Flask-PyMongo
+Flask-Cors
