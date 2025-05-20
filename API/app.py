@@ -1,12 +1,9 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 import pickle
-from sklearn.feature_extraction.text import TfidfVectorizer
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__, static_folder='Desktop/public', template_folder='Desktop/public')
 app.secret_key = 'your_secret_key'  # Change this to a secure random key
-csrf = CSRFProtect(app)
 
 # Load the trained model and vectorizer
 # model = pickle.load(open('path/to/pac_model.pkl', 'rb'))  # Update the path to your model file
@@ -35,23 +32,27 @@ def submit_login():
 
 @app.route('/home', methods=['GET'])
 def home():
-    if 'username' in session:
+    if 'email' in session:
         return "Welcome to the AI News Detector!"
     else:
         return redirect(url_for('login'))
 
-@app.route('/predict', methods=['POST'])
-@csrf.exempt
-def predict():
-    if 'email' not in session:
-        return "Unauthorized", 401
+try:
+    model = pickle.load(open('path/to/pac_model.pkl', 'rb'))
+    vectorizer = pickle.load(open('path/to/tfidf_vectorizer.pkl', 'rb'))
+except FileNotFoundError:
+    print("Model or vectorizer file not found. Please check the path.")
 
-    data = request.json['text']
-    # Transform the input text using the vectorizer
-    transformed_data = vectorizer.transform([data])
-    # Predict the label using the loaded model
-    prediction = model.predict(transformed_data)
-    return jsonify({'prediction': prediction[0]})
+
+@app.errorhandler(401)
+def unauthorized_error(error):
+    return jsonify({'error': 'Unauthorized access'}), 401
+
+@app.errorhandler(500)
+def server_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
 
 if __name__ == '__main__':
-    app.run(debug=True)  # Run the Flask app
+    app.run(host='0.0.0.0', port=5000)
+
