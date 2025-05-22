@@ -78,9 +78,12 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
+model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
+vectorizer_path = os.path.join(os.getcwd(), 'models', 'tfidf_vectorizer.pkl')
+
 try:
-    model = pickle.load(open('models/pac_model.pkl', 'rb'))
-    vectorizer = pickle.load(open('models/tfidf_vectorizer.pkl', 'rb'))
+    model = pickle.load(open(model_path, 'rb'))
+    vectorizer = pickle.load(open(vectorizer_path, 'rb'))
 except FileNotFoundError:
     print("Model or vectorizer file missing! Check paths.")
     model, vectorizer = None, None
