@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     registerForm.addEventListener('submit', function(event) {
         event.preventDefault();
-
         const formData = new FormData(registerForm);
         const data = {
     firstname: formData.get('firstname'),

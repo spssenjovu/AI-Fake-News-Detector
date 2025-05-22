@@ -88,10 +88,12 @@ def logout():
 def register():
     return render_template('register.html')
 
+@csrf.exempt
 @app.route('/submit-register', methods=['POST'])
 def submit_register():
+    print("Headers:", request.headers)
+    print("Raw data:", request.data)
     data = request.get_json()
-    
     if not data:
         print("❌ No JSON received! Request might be incorrectly formatted.")
         return jsonify({"success": False, "message": "Invalid request format!"}), 400
