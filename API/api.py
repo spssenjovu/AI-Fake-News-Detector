@@ -4,7 +4,7 @@ from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 
-app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_HOST'] = '127.0.0.1'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'Database#2010'
 app.config['MYSQL_DB'] = 'AI_Connection'
@@ -47,7 +47,7 @@ def register():
     mysql.connection.commit()
     cursor.close()
 
-    return redirect(url_for('home'))
+    return redirect(url_for('main'))
 
 if __name__ == '__main__':
     app.run(debug=True)
