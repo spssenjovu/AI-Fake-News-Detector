@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, send_from_directory
+
 import pickle
 from werkzeug.security import generate_password_hash, check_password_hash
 import MySQLdb
@@ -78,15 +79,20 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
+@app.route('/register')
+def register():
+    return render_template('register.html')
+
 model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
 vectorizer_path = os.path.join(os.getcwd(), 'models', 'tfidf_vectorizer.pkl')
 
 try:
     model = pickle.load(open(model_path, 'rb'))
-    vectorizer = pickle.load(open(vectorizer_path, 'rb'))
+    print("✅ Model loaded successfully!")
 except FileNotFoundError:
-    print("Model or vectorizer file missing! Check paths.")
-    model, vectorizer = None, None
+    print(f"❌ Model file not found: {model_path}")
+except Exception as e:
+    print(f"❌ Error loading model: {e}")
 
 
 @app.errorhandler(401)
