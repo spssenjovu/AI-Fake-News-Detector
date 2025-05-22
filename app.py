@@ -83,6 +83,24 @@ def logout():
 def register():
     return render_template('register.html')
 
+@app.route('/submit-register', methods=['POST'])
+def submit_register():
+    firstname = request.form['firstname']
+    lastname = request.form['lastname']
+    email = request.form.get('email')
+    password = request.form.get('password')
+
+    # Hash the password for security
+    hashed_password = generate_password_hash(password)
+
+    # Insert user into the database
+    cursor.execute("INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s)", 
+                   (firstname, lastname, email, hashed_password))
+    mysql.commit()
+
+    flash("Registration successful!", "success")
+    return redirect(url_for('login'))
+
 model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
 vectorizer_path = os.path.join(os.getcwd(), 'models', 'tfidf_vectorizer.pkl')
 
@@ -91,8 +109,10 @@ try:
     print("✅ Model loaded successfully!")
 except FileNotFoundError:
     print(f"❌ Model file not found: {model_path}")
+except pickle.UnpicklingError:
+    print("❌ Error: Model file is corrupted or incompatible.")
 except Exception as e:
-    print(f"❌ Error loading model: {e}")
+    print(f"❌ Unexpected error loading model: {e}")
 
 
 @app.errorhandler(401)
