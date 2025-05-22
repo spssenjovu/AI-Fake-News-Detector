@@ -6,13 +6,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const formData = new FormData(registerForm);
         const data = {
-            name: formData.get('name'),
             email: formData.get('email'),
-            password: formData.get('password'),
-            confirmPassword: formData.get('confirmPassword')
+            password: formData.get('password')
         };
 
-        fetch('/api/login', {
+        fetch('/submit-login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

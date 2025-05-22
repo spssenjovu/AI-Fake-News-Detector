@@ -2,22 +2,24 @@
 <html>
 <head>
     <title>Register Page</title>
-    <link rel="stylesheet" type="text/css" href="styles.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     <div class="register-container">
-        <form id="register-form"  action="{{ url_for('register') }}" method="post">
-            <h2>Register</h2>
-            <label for="name">Name:</label>
-            <input type="text" id="name" name="name" required>
-            <label for="email">Email:</label>
-            <input type="text" id="email" name="email" required>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
-            <label for="confirm-password">Confirm Password:</label>
-            <input type="password" id="confirm-password" name="confirm-password" required>
-            <button type="submit">Register</button>
-        </form>
+        <form id="registerForm" action="{{ url_for('submit_register') }}" method="POST">
+    <h2>Register</h2>
+    <label for="firstname">First Name:</label>
+    <input type="text" id="firstname" name="firstname" required>
+    <label for="lastname">Last Name:</label>
+    <input type="text" id="lastname" name="lastname" required>
+    <label for="email">Email:</label>
+    <input type="text" id="email" name="email" required>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required>
+    <label for="confirm-password">Confirm Password:</label>
+    <input type="password" id="confirm-password" name="confirm-password" required>
+    <button type="submit">Register</button>
+</form>
     </div>
     <script src="{{ url_for('static', filename='js/register.js') }}"></script>
 </body>

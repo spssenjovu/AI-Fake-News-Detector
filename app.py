@@ -18,6 +18,8 @@ app.secret_key = 'your_secret_key'  # Change this to a secure random key
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'Database#2010'
 app.config['MYSQL_DB'] = 'ai_connection'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_TYPE'] = "filesystem"
 
 try:
     mysql = MySQLdb.connect(
@@ -53,17 +55,20 @@ def login():
 
 @app.route('/submit-login', methods=['POST'])
 def submit_login():
-    email = request.form['email']
-    password = request.form['password']
+    email = request.form.get('email')
+    password = request.form.get('password')
 
     cursor.execute("SELECT password_hash FROM users WHERE email=%s", (email,))
     user_data = cursor.fetchone()
 
     if user_data and check_password_hash(user_data[0], password):
         session['email'] = email
+        flash("Login successful!", "success")
         return redirect(url_for('home'))
     else:
-        return jsonify({"error": "Invalid credentials"}), 401
+        flash("Invalid credentials. Please try again.", "danger")
+        return redirect(url_for('login'))
+
 
 @app.route('/home', methods=['GET'])
 def home():
@@ -85,21 +90,30 @@ def register():
 
 @app.route('/submit-register', methods=['POST'])
 def submit_register():
-    firstname = request.form['firstname']
-    lastname = request.form['lastname']
-    email = request.form.get('email')
-    password = request.form.get('password')
+    data = request.get_json()
+    
+    if not data:
+        print("❌ No JSON received! Request might be incorrectly formatted.")
+        return jsonify({"success": False, "message": "Invalid request format!"}), 400
+    
+    print("✅ Received data:", data)  # Debugging log
 
-    # Hash the password for security
+    firstname = data.get('firstname')
+    lastname = data.get('lastname')
+    email = data.get('email')
+    password = data.get('password')
+    confirm_password = data.get('confirmPassword')
+
+    if password != confirm_password:
+        return jsonify({"success": False, "message": "Passwords do not match!"}), 400
+
     hashed_password = generate_password_hash(password)
 
-    # Insert user into the database
-    cursor.execute("INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s)", 
+    cursor.execute("INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",  
                    (firstname, lastname, email, hashed_password))
     mysql.commit()
 
-    flash("Registration successful!", "success")
-    return redirect(url_for('login'))
+    return jsonify({"success": True, "message": "Registration successful!", "redirect": url_for('login')})
 
 model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
 vectorizer_path = os.path.join(os.getcwd(), 'models', 'tfidf_vectorizer.pkl')

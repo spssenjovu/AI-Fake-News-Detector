@@ -6,23 +6,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const formData = new FormData(registerForm);
         const data = {
-            username: formData.get('username'),
-            email: formData.get('email'),
-            password: formData.get('password')
-        };
+    firstname: formData.get('firstname'),
+    lastname: formData.get('lastname'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirm-password')
+};
 
-        fetch('/api/register', {
+
+        fetch('/submit-register', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Registration successful!');
-                window.location.href = 'main.html';
+                alert(data.message);
+                window.location.href = data.redirect;  // Redirect to login page
             } else {
                 alert('Registration failed: ' + data.message);
             }
@@ -31,5 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             alert('An error occurred. Please try again later.');
         });
-    });
-});
+    }); // <-- This closes the submit event listener
+}); // <-- This closes the DOMContentLoaded event listener
+
+    
