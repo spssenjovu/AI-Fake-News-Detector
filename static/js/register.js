@@ -5,14 +5,14 @@ document.addEventListener('DOMContentLoaded', function() {
         event.preventDefault();
         const formData = new FormData(registerForm);
         const data = {
-    firstname: formData.get('firstname'),
-    lastname: formData.get('lastname'),
-    email: formData.get('email'),
-    password: formData.get('password'),
-    confirmPassword: formData.get('confirm-password')
+    firstname: document.getElementById("firstname").value,
+    lastname: document.getElementById("lastname").value,
+    email: document.getElementById("email").value,
+    password: document.getElementById("password").value,
+    confirmPassword: document.getElementById("confirmPassword").value
+
+
 };
-
-
         fetch('/submit-register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

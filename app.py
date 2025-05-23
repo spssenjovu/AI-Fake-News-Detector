@@ -111,8 +111,10 @@ def submit_register():
 
     hashed_password = generate_password_hash(password)
 
-    cursor.execute("INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",  
-                   (firstname, lastname, email, hashed_password))
+    cursor.execute(
+    "INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",   
+    (str(firstname), str(lastname), str(email), str(hashed_password))
+) 
     mysql.commit()
 
     return jsonify({"success": True, "message": "Registration successful!", "redirect": url_for('login')})
