@@ -51,14 +51,15 @@ csrf = CSRFProtect(app)
 def login():
     return render_template('login.html')
 
-@csrf.exempt
 @app.route('/submit-login', methods=['POST'])
+@csrf.exempt
 def submit_login():
-    data = request.get_json()
-    print("Received login data:", data)  # Debugging output
+    if request.content_type != "application/json":
+        return jsonify({"success": False, "message": "Unsupported media type"}), 415
 
-    if not data or "email" not in data or "password" not in data:
-        return jsonify({"success": False, "message": "Invalid request format!"}), 400
+    data = request.get_json(force=True)  # ✅ Use 'force=True' to handle missing headers
+    if not data:
+        return jsonify({"success": False, "message": "Invalid JSON format!"}), 400
 
     email = data.get("email")
     password = data.get("password")
@@ -121,6 +122,7 @@ except pickle.UnpicklingError:
 except Exception as e:
     print(f"❌ Unexpected error loading model: {e}")
 
+# Direct to the main page
 @app.route('/home', methods=['GET'])
 def home():
     if 'email' in session:

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI News Detector</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='page.css') }}">
 </head>
 <body>
     <nav>
@@ -28,5 +28,12 @@
     <footer>
         <p>Developed by Simon | University of Plymouth</p>
     </footer>
+
+    {% if result %}
+<section>
+    <h2>Detection Result:</h2>
+    <p>{{ result }}</p>
+</section>
+{% endif %}
 </body>
 </html>

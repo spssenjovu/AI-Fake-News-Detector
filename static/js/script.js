@@ -4,33 +4,38 @@ document.addEventListener('DOMContentLoaded', function() {
     loginForm.addEventListener('submit', function(event) {
         event.preventDefault();
 
-        const formData = new FormData(loginForm);
-        const data = {
-          email: document.getElementById("email").value,
-          password: document.getElementById("password").value
-    };
-
-
-
         const csrfToken = document.getElementById("csrf_token").value;
+        const loginData = {
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value
+        };
 
-        fetch('/submit-login', {
+
+      fetch('/submit-login', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': csrfToken  // ✅ Include CSRF token properly
+         credentials: 'same-origin',
+        'X-CSRFToken': document.getElementById("csrf_token").value
     },
-    body: JSON.stringify(data)  // ✅ Use the data object
-
-
+    body: JSON.stringify(loginData)
 })
-.then(response => response.json())
+.then(response => {
+    if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+    }
+    return response.json();
+})
 .then(data => {
     if (data.success) {
-        window.location.href = data.redirect;  // ✅ Use Flask's redirect
+        window.location.href = data.redirect;
     } else {
         alert('Login failed: ' + data.message);
     }
+})
+.catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred. Please try again later.');
 });
     });
 });
