@@ -1,25 +1,24 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import pickle
 from werkzeug.security import generate_password_hash, check_password_hash
 import MySQLdb
 import os
 from flask_wtf.csrf import CSRFProtect
 
-app = Flask(__name__,template_folder='./templates',static_folder='./static')
+app = Flask(__name__, template_folder='./templates', static_folder='./static')
+app.secret_key = os.getenv('SECRET_KEY', 'your_secret_key')  # Set only once
 
-app.secret_key = 'your_secret_key'  # Change this to a secure random key
-
-# Load the trained model and vectorizer
-# model = pickle.load(open('path/to/pac_model.pkl', 'rb'))  # Update the path to your model file
-# vectorizer = pickle.load(open('path/to/tfidf_vectorizer.pkl', 'rb'))  # Update the path to your vectorizer file
-
-# Database connection
+# Database configuration
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'Database#2010'
 app.config['MYSQL_DB'] = 'ai_connection'
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_TYPE'] = "filesystem"
 
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Connect to MySQL
 try:
     mysql = MySQLdb.connect(
         host="127.0.0.1",
@@ -42,22 +41,19 @@ def test_db():
     except MySQLdb.Error as e:
         return f"Database connection error: {e}"
 
-
-app.secret_key = os.getenv('SECRET_KEY', 'fallback_secret')
-csrf = CSRFProtect(app)
-
-# User registration and login
+# User login page
 @app.route('/', methods=['GET', 'POST'])
 def login():
     return render_template('login.html')
 
+# Handle login submission
 @app.route('/submit-login', methods=['POST'])
 @csrf.exempt
 def submit_login():
     if request.content_type != "application/json":
         return jsonify({"success": False, "message": "Unsupported media type"}), 415
 
-    data = request.get_json(force=True)  # ✅ Use 'force=True' to handle missing headers
+    data = request.get_json(force=True)
     if not data:
         return jsonify({"success": False, "message": "Invalid JSON format!"}), 400
 
@@ -73,21 +69,18 @@ def submit_login():
     else:
         return jsonify({"success": False, "message": "Invalid credentials."})
 
+# Registration page
 @app.route('/register')
 def register():
     return render_template('register.html')
 
-@csrf.exempt
+# Handle registration submission
 @app.route('/submit-register', methods=['POST'])
+@csrf.exempt
 def submit_register():
-    print("Headers:", request.headers)
-    print("Raw data:", request.data)
     data = request.get_json()
     if not data:
-        print("❌ No JSON received! Request might be incorrectly formatted.")
         return jsonify({"success": False, "message": "Invalid request format!"}), 400
-    
-    print("✅ Received data:", data)  # Debugging log
 
     firstname = data.get('firstname')
     lastname = data.get('lastname')
@@ -100,58 +93,72 @@ def submit_register():
 
     hashed_password = generate_password_hash(password)
 
-    cursor.execute(
-    "INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",   
-    (str(firstname), str(lastname), str(email), str(hashed_password))
-) 
-    mysql.commit()
+    try:
+        cursor.execute(
+            "INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",
+            (firstname, lastname, email, hashed_password)
+        )
+        mysql.commit()
+    except MySQLdb.Error as e:
+        return jsonify({"success": False, "message": f"Database error: {e}"}), 500
 
     return jsonify({"success": True, "message": "Registration successful!", "redirect": url_for('login')})
 
-# Loading the model and vectorizer
+# Load the model and vectorizer
 model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
-vectorizer_path = os.path.join(os.getcwd(), 'models', 'tfidf_vectorizer.pkl')
-
 try:
     model = pickle.load(open(model_path, 'rb'))
     print("✅ Model loaded successfully!")
-except FileNotFoundError:
-    print(f"❌ Model file not found: {model_path}")
-except pickle.UnpicklingError:
-    print("❌ Error: Model file is corrupted or incompatible.")
 except Exception as e:
-    print(f"❌ Unexpected error loading model: {e}")
+    print(f"❌ Error loading model: {e}")
+    model = None
 
-# Direct to the main page
+# Main page (requires login)
 @app.route('/home', methods=['GET'])
 def home():
     if 'email' in session:
-        return render_template('main.html')  # ✅ Confirm this file exists in /templates
+        return render_template('main.html')
     else:
         flash("You must be logged in to access this page.", "warning")
         return redirect(url_for('login'))
-    
+
+# Prediction endpoint (requires login)
 @app.route('/predict', methods=['POST'])
 def predict():
+    if 'email' not in session:
+        flash("You must be logged in to access this page.", "warning")
+        return redirect(url_for('login'))
+
     news_text = request.form.get("news")
     if not news_text:
-        flash("Please enter news text.", "warning")
+        flash("Please enter news link.", "warning")
         return redirect(url_for('home'))
 
-    # Process with AI model here
-    prediction = model.predict([news_text])
+    if not model:
+        flash("Model not loaded.", "danger")
+        return redirect(url_for('home'))
 
+    prediction = model.predict([news_text])
     return render_template('main.html', result=prediction)
 
+# About
+@app.route('/about')
+def about():
+    return render_template('about.html')
 
+# Settings 
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
 
+# Logout
 @app.route('/logout')
 def logout():
     session.pop('email', None)
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
-
+# Error handlers
 @app.errorhandler(401)
 def unauthorized_error(error):
     return jsonify({'error': 'Unauthorized access'}), 401
@@ -160,7 +167,5 @@ def unauthorized_error(error):
 def server_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
