@@ -4,31 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI News Detector</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='page.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/page.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
+    <header>
             <h1>AI News Detector</h1>
             <nav class="navbar">
-            <ul>
-                <li><a href="{{ url_for('home') }}">Home</a></li>
-                <li><a href="{{ url_for('settings') }}">Settings</a></li>
-                <li><a href="{{ url_for('about') }}">About</a></li>
-                <li><a href="{{ url_for('logout') }}">Logout</a></li>
-            </ul>
-        </nav>
-        </header>
+                <ul>
+                    <li><a href="{{ url_for('home') }}">Home</a></li>
+                    <li><a href="{{ url_for('about') }}">About</a></li>
+                    <li><a href="{{ url_for('settings') }}">Settings</a></li>
+                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                </ul>
+            </nav>
+    </header>
         <main>
+            <div class="container">
             <form method="post" action="/predict">
                 <label for="news">Enter News Link:</label>
-                <textarea id="news" name="news" rows="10" cols="30" required></textarea>
-                <button type="submit">Detect</button>
+                <textarea id="news" name="news" rows="5" cols="30" required></textarea>
+                    <button type="submit">Analyze</button>
             </form>
+            </div>
         </main>
+        
         <footer>
-            <p>Developed by Simon | University of Plymouth</p>
+            <p>&copy; 2025 AI News Detector | Developed by Simon | University of Plymouth</p>
         </footer>
+
         {% if result %}
         <section>
             <h2>Detection Result:</h2>
@@ -36,6 +39,7 @@
         </section>
         {% endif %}
     </div>
+
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

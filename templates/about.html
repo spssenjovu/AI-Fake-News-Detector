@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About | AI News Detector</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/page.css') }}">
+</head>
+<body>
+    <header>
+        <h1>About AI News Detector</h1>
+        <nav class="navbar">
+            <ul>
+                <li><a href="{{ url_for('home') }}">Home</a></li>
+                <li><a href="{{ url_for('settings') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="content">
+        <section class="about">
+            <h2>What is AI News Detector?</h2>
+            <p>AI News Detector is a web-based application designed to analyze news articles and determine their credibility using AI-powered language processing. It evaluates patterns, sources, and content structures to assess authenticity.</p>
+        </section>
+
+        <section class="how-it-works">
+            <h2>How Does It Work?</h2>
+            <p>Using a trained AI model, the system scans the inputted news link, processes the text, and delivers an analysis regarding its reliability based on various factors such as writing style, source legitimacy, and detected biases.</p>
+        </section>
+
+        <section class="developer-info">
+            <h2>Meet the Developer</h2>
+            <p>This project was developed by <strong>Simon</strong>, a backend developer with expertise in Flask and MySQL, alongside a strong focus on ethical AI practices. It was built as part of professional growth efforts aligned with industry standards.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 AI News Detector | Developed by Simon | University of Plymouth</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
