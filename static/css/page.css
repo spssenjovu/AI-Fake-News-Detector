@@ -73,6 +73,14 @@ input {
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
+.navbar-title {
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0;
+    padding: 10px;
+}
+
 .navbar ul {
     list-style-type: none;
     display: flex;

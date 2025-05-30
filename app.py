@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import pickle
-from werkzeug.security import generate_password_hash, check_password_hash
-import MySQLdb
+from werkzeug.security import generate_password_hash, check_password_hash # type: ignore
+import MySQLdb # type: ignore
 import os
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect # type: ignore
 
-app = Flask(__name__, template_folder='./templates', static_folder='./static')
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.getenv('SECRET_KEY', 'your_secret_key')  # Set only once
 
 # Database configuration
@@ -65,8 +65,10 @@ def submit_login():
 
     if user_data and check_password_hash(user_data[0], password):
         session['email'] = email
+        flash("✅ Login successful!", "success")
         return jsonify({"success": True, "redirect": url_for('home')})
     else:
+        flash("❌ Invalid credentials. Try again.", "danger")
         return jsonify({"success": False, "message": "Invalid credentials."})
 
 # Registration page
@@ -155,7 +157,7 @@ def settings():
 @app.route('/logout')
 def logout():
     session.pop('email', None)
-    flash("You have been logged out.", "info")
+    flash("ℹ️ You have been logged out.", "info")
     return redirect(url_for('login'))
 
 # Error handlers
@@ -165,6 +167,7 @@ def unauthorized_error(error):
 
 @app.errorhandler(500)
 def server_error(error):
+    flash("🚨 Internal Server Error. Please try again later.", "danger")
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
