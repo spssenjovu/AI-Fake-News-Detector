@@ -143,6 +143,13 @@ def predict():
     prediction = model.predict([news_text])
     return render_template('main.html', result=prediction)
 
+# News classification endpoint
+@app.route('/predict-news', methods=['GET'])
+def predict_news():
+    articles = get_news_articles()  # Fetch news articles
+    predictions = classify_news_articles(articles)  # Run classification
+    return jsonify({"results": predictions})
+
 # About
 @app.route('/about')
 def about():
