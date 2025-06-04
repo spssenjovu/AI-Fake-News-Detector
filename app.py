@@ -130,17 +130,32 @@ def home():
 @app.route('/predict', methods=['POST'])
 @csrf.exempt
 def predict():
+    print("Received request:", request.json)  # Check JSON object
+    
+    print("Raw request data:", request.data)  # Check raw incoming payload
+    
+    print("Parsed JSON:", request.get_json(force=True))  # Ensure proper parsing
+    
     if 'email' not in session:
         flash("You must be logged in to access this page.", "warning")
         return redirect(url_for('login'))
 
     # Expect JSON input instead of form data
     data = request.get_json(silent=True)
-    print(f"Received data: {data}")
+    print(f"Received data: {data}")  # Debugging output
+    
     if not data or 'news' not in data:
         return jsonify({"error": "Invalid input format"}), 400
 
-    news_text = data['news']
+    news_input = data['news']
+    if news_input.startswith("http://") or news_input.startswith("https://"):
+        # If the input is a URL, extract the article text
+        articles = extract_multiple_articles([news_input])
+        if not articles or not articles[0]:
+            return jsonify({"error": "Failed to extract article from URL"}), 400
+        news_text = articles[0]
+    else:
+        news_text = news_input
 
     if not model:
         flash("Model not loaded.", "danger")
@@ -152,13 +167,19 @@ def predict():
 # News classification endpoint
 @app.route('/predict-news', methods=['GET'])
 def predict_news():
-    urls = request.args.getlist('urls')  # Extract list of URLs from the request
+    # Extract list of URLs from the query parameters (?urls=url1&urls=url2...)
+    urls = request.args.getlist('urls')
 
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
 
-    articles = extract_multiple_articles(urls)  # Fetch news articles
-    predictions = classify_news_articles(articles)  # Run classification
+    # Extract articles from the URLs
+    articles = extract_multiple_articles(urls)
+    if not articles or all(not a for a in articles):
+        return jsonify({"error": "Failed to extract articles from provided URLs"}), 400
+
+    # Run classification on the extracted articles
+    predictions = classify_news_articles(articles)
     return jsonify({"results": predictions})
 
 # About

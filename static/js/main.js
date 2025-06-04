@@ -4,23 +4,36 @@ document.addEventListener('DOMContentLoaded', function () {
 
     form.addEventListener('submit', function (event) {
         event.preventDefault();
-        const newsText = document.getElementById('news').value;
+        const newsText = document.getElementById('news').value.trim();
+
+        if (!newsText) {
+            alert('Please enter a news link or text.');
+            return;
+        }
+
+        // Remove previous result if it exists
+        let oldResult = document.getElementById('detection-result');
+        if (oldResult) oldResult.remove();
 
         fetch('/predict', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ news: newsText })
         })
         .then(response => response.json())
         .then(data => {
             const resultContainer = document.createElement('section');
-            resultContainer.innerHTML = `<h2>Detection Result:</h2><p>${data.prediction}</p>`;
+            resultContainer.id = 'detection-result';
+            if (data.error) {
+                resultContainer.innerHTML = `<h2>Error:</h2><p>${data.error}</p>`;
+            } else {
+                resultContainer.innerHTML = `<h2>Detection Result:</h2><p>${data.prediction}</p>`;
+            }
             form.insertAdjacentElement('afterend', resultContainer);
         })
         .catch(error => {
             alert('An error occurred while analyzing news.');
-            console.error(error);
+            console.error("Fetch error:", error);
         });
     });
 });
-
