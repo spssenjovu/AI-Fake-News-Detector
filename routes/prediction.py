@@ -1,5 +1,5 @@
 import joblib
-from preprocessing import preprocess_text  # Assuming preprocessing steps exist
+from utils.preprocessing import preprocess_text  # Adjust the path as needed
 
 model = joblib.load("models/pac_model.pkl")
 vectorizer = joblib.load("models/tfidf_vectorizer.pkl")

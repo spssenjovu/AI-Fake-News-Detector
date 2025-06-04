@@ -4,6 +4,8 @@ from werkzeug.security import generate_password_hash, check_password_hash # type
 import MySQLdb # type: ignore
 import os
 from flask_wtf.csrf import CSRFProtect # type: ignore
+from scrapper.extractor import extract_multiple_articles
+from routes.prediction import classify_news_articles  # Import your prediction functions
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.getenv('SECRET_KEY', 'your_secret_key')  # Set only once
@@ -126,27 +128,36 @@ def home():
 
 # Prediction endpoint (requires login)
 @app.route('/predict', methods=['POST'])
+@csrf.exempt
 def predict():
     if 'email' not in session:
         flash("You must be logged in to access this page.", "warning")
         return redirect(url_for('login'))
 
-    news_text = request.form.get("news")
-    if not news_text:
-        flash("Please enter news link.", "warning")
-        return redirect(url_for('home'))
+    # Expect JSON input instead of form data
+    data = request.get_json(silent=True)
+    print(f"Received data: {data}")
+    if not data or 'news' not in data:
+        return jsonify({"error": "Invalid input format"}), 400
+
+    news_text = data['news']
 
     if not model:
         flash("Model not loaded.", "danger")
-        return redirect(url_for('home'))
+        return jsonify({"error": "Model not loaded"}), 500
 
     prediction = model.predict([news_text])
-    return render_template('main.html', result=prediction)
+    return jsonify({"prediction": prediction[0]})
 
 # News classification endpoint
 @app.route('/predict-news', methods=['GET'])
 def predict_news():
-    articles = get_news_articles()  # Fetch news articles
+    urls = request.args.getlist('urls')  # Extract list of URLs from the request
+
+    if not urls:
+        return jsonify({"error": "No URLs provided"}), 400
+
+    articles = extract_multiple_articles(urls)  # Fetch news articles
     predictions = classify_news_articles(articles)  # Run classification
     return jsonify({"results": predictions})
 

@@ -1,37 +1,26 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const form = document.querySelector('form[action="/predict"]');
+    const form = document.getElementById('news-form');
     if (!form) return;
 
     form.addEventListener('submit', function (event) {
         event.preventDefault();
-
         const newsText = document.getElementById('news').value;
 
         fetch('/predict', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: new URLSearchParams({ news: newsText })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ news: newsText })
         })
-        .then(response => response.text())
-        .then(html => {
-            // Replace the main content with the new HTML (or just update the result section)
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const resultSection = doc.querySelector('section');
-            if (resultSection) {
-                const currentResult = document.querySelector('section');
-                if (currentResult) {
-                    currentResult.replaceWith(resultSection);
-                } else {
-                    form.insertAdjacentElement('afterend', resultSection);
-                }
-            }
+        .then(response => response.json())
+        .then(data => {
+            const resultContainer = document.createElement('section');
+            resultContainer.innerHTML = `<h2>Detection Result:</h2><p>${data.prediction}</p>`;
+            form.insertAdjacentElement('afterend', resultContainer);
         })
         .catch(error => {
-            alert('An error occurred while detecting news.');
+            alert('An error occurred while analyzing news.');
             console.error(error);
         });
     });
 });
+
