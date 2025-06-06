@@ -167,18 +167,15 @@ def predict():
 # News classification endpoint
 @app.route('/predict-news', methods=['GET'])
 def predict_news():
-    # Extract list of URLs from the query parameters (?urls=url1&urls=url2...)
     urls = request.args.getlist('urls')
 
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
 
-    # Extract articles from the URLs
     articles = extract_multiple_articles(urls)
-    if not articles or all(not a for a in articles):
+    if not articles:
         return jsonify({"error": "Failed to extract articles from provided URLs"}), 400
 
-    # Run classification on the extracted articles
     predictions = classify_news_articles(articles)
     return jsonify({"results": predictions})
 

@@ -2,7 +2,7 @@ import requests
 import os
 
 API_KEY = "069f64da73e34e95a9fc9d974e8afb30"
-URL = f"https://newsapi.org/v2/top-headlines?country=us&apiKey={API_KEY}"
+URL = f"https://newsapi.org/v2/top-headlines?country=gb&apiKey={API_KEY}"
 
 def get_news_articles(limit=10):
     try:
