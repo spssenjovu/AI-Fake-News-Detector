@@ -1,52 +1,67 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import pickle
-from werkzeug.security import generate_password_hash, check_password_hash # type: ignore
-import MySQLdb # type: ignore
+from werkzeug.security import generate_password_hash, check_password_hash
+import MySQLdb
+from dotenv import load_dotenv
+from cryptography.fernet import Fernet
+import base64
 import os
-from flask_wtf.csrf import CSRFProtect # type: ignore
+from flask_wtf.csrf import CSRFProtect
 from scrapper.extractor import extract_multiple_articles
-from routes.prediction import classify_news_articles  # Import your prediction functions
+from routes.prediction import classify_news_articles
+
+# Load environment variables
+load_dotenv()
+
+# Ensure the encryption key is set
+fernet = Fernet(os.getenv("ENCRYPTION_KEY"))
+
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.secret_key = os.getenv('SECRET_KEY', 'your_secret_key')  # Set only once
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your_secret_key')
+app.secret_key = app.config['SECRET_KEY']
 
-# Database configuration
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'Database#2010'
-app.config['MYSQL_DB'] = 'ai_connection'
-app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_TYPE'] = "filesystem"
-
-# Initialize CSRF protection
+# CSRF protection
 csrf = CSRFProtect(app)
 
-# Connect to MySQL
-try:
-    mysql = MySQLdb.connect(
-        host="127.0.0.1",
-        user=app.config['MYSQL_USER'],
-        password=app.config['MYSQL_PASSWORD'],
-        database=app.config['MYSQL_DB']
-    )
-    cursor = mysql.cursor()
-    print("✅ Database connected successfully!")
-except MySQLdb.Error as e:
-    print(f"❌ Error connecting to MySQL: {e}")
+# Database configuration
+app.config['MYSQL_USER'] = os.getenv('MYSQL_USER')
+app.config['MYSQL_PASSWORD'] = os.getenv('MYSQL_PASSWORD')
+app.config['MYSQL_DB'] = os.getenv('MYSQL_DB')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Test database connection
-@app.route('/test-db')
-def test_db():
-    try:
-        cursor.execute("SELECT DATABASE();")
-        db_name = cursor.fetchone()
-        return f"Connected to database: {db_name[0]}"
-    except MySQLdb.Error as e:
-        return f"Database connection error: {e}"
+# Initialize MySQL connection and cursor
+mysql = MySQLdb.connect(
+    host=os.getenv('MYSQL_HOST', 'localhost'),
+    user=app.config['MYSQL_USER'],
+    passwd=app.config['MYSQL_PASSWORD'],
+    db=app.config['MYSQL_DB']
+)
+cursor = mysql.cursor()
+
+# Load the model
+model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
+try:
+    model = pickle.load(open(model_path, 'rb'))
+    print("✅ Model loaded successfully!")
+except Exception as e:
+    print(f"❌ Error loading model: {e}")
+    model = None
 
 # User login page
 @app.route('/', methods=['GET', 'POST'])
 def login():
     return render_template('login.html')
+
+def get_decrypted_email():
+    """Retrieve and decrypt the logged-in user's email."""
+    encrypted_email = session.get("email")
+    if encrypted_email:
+        return fernet.decrypt(encrypted_email.encode()).decode()
+    return None  # User not logged in
+
 
 # Handle login submission
 @app.route('/submit-login', methods=['POST'])
@@ -66,12 +81,15 @@ def submit_login():
     user_data = cursor.fetchone()
 
     if user_data and check_password_hash(user_data[0], password):
-        session['email'] = email
+        encrypted_email = fernet.encrypt(email.encode()).decode()  # Encrypt email
+        session['email'] = encrypted_email  # Store encrypted email in session
         flash("✅ Login successful!", "success")
         return jsonify({"success": True, "redirect": url_for('home')})
     else:
         flash("❌ Invalid credentials. Try again.", "danger")
-        return jsonify({"success": False, "message": "Invalid credentials."})
+        return jsonify({"success": False, "message": "Invalid credentials."}), 401
+
+
 
 # Registration page
 @app.route('/register')
@@ -108,19 +126,11 @@ def submit_register():
 
     return jsonify({"success": True, "message": "Registration successful!", "redirect": url_for('login')})
 
-# Load the model and vectorizer
-model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
-try:
-    model = pickle.load(open(model_path, 'rb'))
-    print("✅ Model loaded successfully!")
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    model = None
-
 # Main page (requires login)
 @app.route('/home', methods=['GET'])
 def home():
     if 'email' in session:
+        decrypted_email = fernet.decrypt(session.get("email").encode()).decode()  # 🔓 Decrypt email
         return render_template('main.html')
     else:
         flash("You must be logged in to access this page.", "warning")
@@ -130,26 +140,19 @@ def home():
 @app.route('/predict', methods=['POST'])
 @csrf.exempt
 def predict():
-    print("Received request:", request.json)  # Check JSON object
-    
-    print("Raw request data:", request.data)  # Check raw incoming payload
-    
-    print("Parsed JSON:", request.get_json(force=True))  # Ensure proper parsing
-    
     if 'email' not in session:
         flash("You must be logged in to access this page.", "warning")
         return redirect(url_for('login'))
-
-    # Expect JSON input instead of form data
-    data = request.get_json(silent=True)
-    print(f"Received data: {data}")  # Debugging output
     
+    decrypted_email = fernet.decrypt(session.get("email").encode()).decode()  # 🔓 Decrypt email
+    print(f"User {decrypted_email} is making a prediction!")  # Log action securely
+
+    data = request.get_json(silent=True)
     if not data or 'news' not in data:
         return jsonify({"error": "Invalid input format"}), 400
 
     news_input = data['news']
     if news_input.startswith("http://") or news_input.startswith("https://"):
-        # If the input is a URL, extract the article text
         articles = extract_multiple_articles([news_input])
         if not articles or not articles[0]:
             return jsonify({"error": "Failed to extract article from URL"}), 400
@@ -158,17 +161,15 @@ def predict():
         news_text = news_input
 
     if not model:
-        flash("Model not loaded.", "danger")
         return jsonify({"error": "Model not loaded"}), 500
 
     prediction = model.predict([news_text])
     return jsonify({"prediction": prediction[0]})
 
-# News classification endpoint
+# News classification endpoint (batch)
 @app.route('/predict-news', methods=['GET'])
 def predict_news():
     urls = request.args.getlist('urls')
-
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
 
@@ -179,12 +180,12 @@ def predict_news():
     predictions = classify_news_articles(articles)
     return jsonify({"results": predictions})
 
-# About
+# About page
 @app.route('/about')
 def about():
     return render_template('about.html')
 
-# Settings 
+# Settings page
 @app.route('/settings')
 def settings():
     return render_template('settings.html')

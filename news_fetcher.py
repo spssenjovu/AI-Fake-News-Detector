@@ -1,26 +1,34 @@
 import requests
 import os
+from dotenv import load_dotenv
 
-API_KEY = "069f64da73e34e95a9fc9d974e8afb30"
-URL = f"https://newsapi.org/v2/top-headlines?country=gb&apiKey={API_KEY}"
+# Load environment variables securely
+load_dotenv()
+API_KEY = os.getenv("NEWS_API_KEY")
+BASE_URL = "https://newsapi.org/v2/top-headlines?country=gb&page={page}&pageSize={limit}&apiKey=" + API_KEY
 
-def get_news_articles(limit=10):
+def get_news_articles(page=1, limit=10):
+    """Fetches news articles securely with proper error handling."""
+    url = BASE_URL.format(page=page, limit=limit)
+
     try:
-        response = requests.get(URL)
-        response.raise_for_status()  # Raises an error for bad responses (4xx, 5xx)
+        response = requests.get(url, timeout=5)  # Timeout prevents hanging requests
+        response.raise_for_status()  # Raise error for bad responses (4xx, 5xx)
+
         data = response.json()
+        if "articles" not in data or not data["articles"]:
+            return ["Error: No articles found."]
 
-        # Ensure "articles" exists in the API response
-        if not data or "articles" not in data:
-            return ["Error: No articles found. Check API response."]
+        return [
+            f"{article.get('title', 'No Title Available')} - {article.get('description', 'No Description Available')}"
+            for article in data.get("articles", [])[:limit]
+        ]
 
-        articles = []
-        for article in data.get("articles", [])[:limit]:
-            title = article.get("title", "No Title Available")
-            description = article.get("description", "No Description Available")
-            articles.append(f"{title} - {description}")
-
-        return articles if articles else ["No articles found."]
-    
+    except requests.exceptions.Timeout:
+        return ["Error: API request timed out."]
+    except requests.exceptions.ConnectionError:
+        return ["Error: Network connection failed."]
     except requests.exceptions.RequestException as e:
         return [f"Error fetching news: {e}"]
+    
+    

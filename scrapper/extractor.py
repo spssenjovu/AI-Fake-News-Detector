@@ -1,5 +1,6 @@
 from newspaper import Article
 import validators
+import time
 
 def extract_article(url):
     """Extracts article text from the given news URL."""
