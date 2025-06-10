@@ -15,5 +15,5 @@ def classify_news_articles(articles):
     return results
 
 def preprocess_and_classify(articles):
-    cleaned_articles = [preprocess_text(article) for article in articles]
-    return classify_news_articles(cleaned_articles)
+    cleaned_articles = [preprocess_text(article) for article in articles]  # Cleaned as strings
+    return classify_news_articles(cleaned_articles)  # Ensures vectorizer receives proper input

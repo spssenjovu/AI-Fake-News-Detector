@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Remove previous result if it exists
-        let oldResult = document.getElementById('detection-result');
+        const oldResult = document.getElementById('detection-result');
         if (oldResult) oldResult.remove();
 
         fetch('/predict', {
@@ -22,18 +22,22 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(response => response.json())
         .then(data => {
+            console.log("Server response:", data);
+
             const resultContainer = document.createElement('section');
             resultContainer.id = 'detection-result';
+
             if (data.error) {
                 resultContainer.innerHTML = `<h2>Error:</h2><p>${data.error}</p>`;
             } else {
                 resultContainer.innerHTML = `<h2>Detection Result:</h2><p>${data.prediction}</p>`;
             }
+
             form.insertAdjacentElement('afterend', resultContainer);
         })
         .catch(error => {
-            alert('An error occurred while analyzing news.');
             console.error("Fetch error:", error);
+            alert('An error occurred while analyzing news.');
         });
     });
 });

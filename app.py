@@ -1,22 +1,30 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import pickle
 from werkzeug.security import generate_password_hash, check_password_hash
+from utils.preprocessing import preprocess_text 
 import MySQLdb
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
-import base64
 import os
 from flask_wtf.csrf import CSRFProtect
 from scrapper.extractor import extract_multiple_articles
 from routes.prediction import classify_news_articles
 
+# Define paths for model and vectorizer
+model_path = os.path.join(os.getcwd(), 'Models', 'pac_model.pkl')
+vectorizer_path = os.path.join(os.getcwd(), 'Models', 'tfidf_vectorizer.pkl')
+
+
 # Load environment variables
 load_dotenv()
 
-# Ensure the encryption key is set
-fernet = Fernet(os.getenv("ENCRYPTION_KEY"))
+# Encryption key setup
+encryption_key = os.getenv("ENCRYPTION_KEY")
+if not encryption_key:
+    raise ValueError("❌ ENCRYPTION_KEY is missing! Check your .env file.")
+fernet = Fernet(encryption_key)
 
-
+# Flask app setup
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your_secret_key')
 app.secret_key = app.config['SECRET_KEY']
@@ -41,8 +49,7 @@ mysql = MySQLdb.connect(
 )
 cursor = mysql.cursor()
 
-# Load the model
-model_path = os.path.join(os.getcwd(), 'models', 'pac_model.pkl')
+# Load the trained model
 try:
     model = pickle.load(open(model_path, 'rb'))
     print("✅ Model loaded successfully!")
@@ -50,20 +57,28 @@ except Exception as e:
     print(f"❌ Error loading model: {e}")
     model = None
 
-# User login page
+# Load the trained vectorizer
+try:
+    vectorizer = pickle.load(open(vectorizer_path, 'rb'))
+    print("✅ Vectorizer loaded successfully!")
+except Exception as e:
+    print(f"❌ Error loading vectorizer: {e}")
+    vectorizer = None
+
+
+# Helper to decrypt email
+def get_decrypted_email():
+    encrypted_email = session.get("email")
+    if encrypted_email:
+        return fernet.decrypt(encrypted_email.encode()).decode()
+    return None
+
+# Routes
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     return render_template('login.html')
 
-def get_decrypted_email():
-    """Retrieve and decrypt the logged-in user's email."""
-    encrypted_email = session.get("email")
-    if encrypted_email:
-        return fernet.decrypt(encrypted_email.encode()).decode()
-    return None  # User not logged in
-
-
-# Handle login submission
 @app.route('/submit-login', methods=['POST'])
 @csrf.exempt
 def submit_login():
@@ -81,22 +96,18 @@ def submit_login():
     user_data = cursor.fetchone()
 
     if user_data and check_password_hash(user_data[0], password):
-        encrypted_email = fernet.encrypt(email.encode()).decode()  # Encrypt email
-        session['email'] = encrypted_email  # Store encrypted email in session
+        encrypted_email = fernet.encrypt(email.encode()).decode()
+        session['email'] = encrypted_email
         flash("✅ Login successful!", "success")
         return jsonify({"success": True, "redirect": url_for('home')})
     else:
         flash("❌ Invalid credentials. Try again.", "danger")
         return jsonify({"success": False, "message": "Invalid credentials."}), 401
 
-
-
-# Registration page
 @app.route('/register')
 def register():
     return render_template('register.html')
 
-# Handle registration submission
 @app.route('/submit-register', methods=['POST'])
 @csrf.exempt
 def submit_register():
@@ -126,71 +137,71 @@ def submit_register():
 
     return jsonify({"success": True, "message": "Registration successful!", "redirect": url_for('login')})
 
-# Main page (requires login)
 @app.route('/home', methods=['GET'])
 def home():
     if 'email' in session:
-        decrypted_email = fernet.decrypt(session.get("email").encode()).decode()  # 🔓 Decrypt email
+        decrypted_email = get_decrypted_email()
         return render_template('main.html')
     else:
         flash("You must be logged in to access this page.", "warning")
         return redirect(url_for('login'))
 
-# Prediction endpoint (requires login)
 @app.route('/predict', methods=['POST'])
 @csrf.exempt
 def predict():
     if 'email' not in session:
         flash("You must be logged in to access this page.", "warning")
         return redirect(url_for('login'))
-    
-    decrypted_email = fernet.decrypt(session.get("email").encode()).decode()  # 🔓 Decrypt email
+
+    decrypted_email = get_decrypted_email()
     print(f"User {decrypted_email} is making a prediction!")  # Log action securely
 
     data = request.get_json(silent=True)
     if not data or 'news' not in data:
         return jsonify({"error": "Invalid input format"}), 400
 
-    news_input = data['news']
-    if news_input.startswith("http://") or news_input.startswith("https://"):
-        articles = extract_multiple_articles([news_input])
-        if not articles or not articles[0]:
-            return jsonify({"error": "Failed to extract article from URL"}), 400
-        news_text = articles[0]
-    else:
-        news_text = news_input
+    news_text = data['news']
 
-    if not model:
-        return jsonify({"error": "Model not loaded"}), 500
+    if not model or not vectorizer:
+        return jsonify({"error": "Model or vectorizer not loaded"}), 500
 
-    prediction = model.predict([news_text])
-    return jsonify({"prediction": prediction[0]})
+    try:
+        news_text_vectorized = vectorizer.transform([news_text])
+        prediction = model.predict(news_text_vectorized)
+        return jsonify({"prediction": prediction[0]})
+    except Exception as e:
+        print(f"Prediction error: {e}")
+        return jsonify({"error": "Prediction failed"}), 500
 
-# News classification endpoint (batch)
 @app.route('/predict-news', methods=['GET'])
 def predict_news():
     urls = request.args.getlist('urls')
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
 
-    articles = extract_multiple_articles(urls)
-    if not articles:
-        return jsonify({"error": "Failed to extract articles from provided URLs"}), 400
+    # Extract article text from URLs
+    articles = extract_multiple_articles(urls)  # Ensure this function works!
 
-    predictions = classify_news_articles(articles)
-    return jsonify({"results": predictions})
+    # Preprocess the extracted text
+    cleaned_articles = [preprocess_text(article) for article in articles]
 
-# About page
+    # Vectorize and classify
+    processed_articles = vectorizer.transform(cleaned_articles)
+    predictions = model.predict(processed_articles)
+
+    results = [{"url": url, "classification": "Fake" if pred == 1 else "Real"}
+               for url, pred in zip(urls, predictions)]
+
+    return jsonify({"results": results})
+
 @app.route('/about')
 def about():
     return render_template('about.html')
 
-# Settings page
 @app.route('/settings')
 def settings():
     return render_template('settings.html')
 
-# Logout
 @app.route('/logout')
 def logout():
     session.pop('email', None)

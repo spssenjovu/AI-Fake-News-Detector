@@ -12,4 +12,5 @@ def preprocess_text(text):
     text = re.sub(r'\W+', ' ', text)  # Remove special characters
     text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
     tokens = word_tokenize(text)  # Tokenize words
-    return tokens  # Returns a list of words
+    
+    return " ".join(tokens)  # Convert list back into a string
