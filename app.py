@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 import pickle
 from werkzeug.security import generate_password_hash, check_password_hash
-from utils.preprocessing import preprocess_text 
+from utils.preprocessing import preprocess_text
 import MySQLdb
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
@@ -9,11 +9,6 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from scrapper.extractor import extract_multiple_articles
 from routes.prediction import classify_news_articles
-
-# Define paths for model and vectorizer
-model_path = os.path.join(os.getcwd(), 'Models', 'pac_model.pkl')
-vectorizer_path = os.path.join(os.getcwd(), 'Models', 'tfidf_vectorizer.pkl')
-
 
 # Load environment variables
 load_dotenv()
@@ -50,6 +45,7 @@ mysql = MySQLdb.connect(
 cursor = mysql.cursor()
 
 # Load the trained model
+model_path = os.path.join(os.getcwd(), 'Models', 'pac_model.pkl')
 try:
     model = pickle.load(open(model_path, 'rb'))
     print("✅ Model loaded successfully!")
@@ -58,13 +54,13 @@ except Exception as e:
     model = None
 
 # Load the trained vectorizer
+vectorizer_path = os.path.join(os.getcwd(), 'Models', 'tfidf_vectorizer.pkl')
 try:
     vectorizer = pickle.load(open(vectorizer_path, 'rb'))
     print("✅ Vectorizer loaded successfully!")
 except Exception as e:
     print(f"❌ Error loading vectorizer: {e}")
     vectorizer = None
-
 
 # Helper to decrypt email
 def get_decrypted_email():
@@ -166,9 +162,12 @@ def predict():
         return jsonify({"error": "Model or vectorizer not loaded"}), 500
 
     try:
-        news_text_vectorized = vectorizer.transform([news_text])
+        # Preprocess and vectorize the input
+        cleaned_text = preprocess_text(news_text)
+        news_text_vectorized = vectorizer.transform([cleaned_text])
         prediction = model.predict(news_text_vectorized)
-        return jsonify({"prediction": prediction[0]})
+        label = "Fake" if prediction[0] == 1 else "Real"
+        return jsonify({"prediction": label})
     except Exception as e:
         print(f"Prediction error: {e}")
         return jsonify({"error": "Prediction failed"}), 500
@@ -180,7 +179,9 @@ def predict_news():
         return jsonify({"error": "No URLs provided"}), 400
 
     # Extract article text from URLs
-    articles = extract_multiple_articles(urls)  # Ensure this function works!
+    articles = extract_multiple_articles(urls)
+    if not articles:
+        return jsonify({"error": "Failed to extract articles from provided URLs"}), 400
 
     # Preprocess the extracted text
     cleaned_articles = [preprocess_text(article) for article in articles]

@@ -1,127 +1,88 @@
 import pandas as pd
 import numpy as np
+import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pickle
-import itertools
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.linear_model import PassiveAggressiveClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_score
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score, roc_auc_score, classification_report
 
-# Load the dataset
+
+# Load the datasets
 df_true = pd.read_csv('True.csv')
 df_fake = pd.read_csv('Fake.csv')
 
-# Add a label column to each DataFrame
+# Add label column
 df_true['label'] = 'True'
 df_fake['label'] = 'Fake'
 
-# Concatenate the DataFrames
-df = pd.concat([df_true, df_fake])
+df_true = df_true.drop_duplicates()
+df_fake = df_fake.drop_duplicates()
 
+print(df_true.shape, df_fake.shape)  # Compare dataset sizes
+print(df_true['label'].value_counts(), df_fake['label'].value_counts())  # Ensure balance
 
+# Concatenate and shuffle
+df = pd.concat([df_true, df_fake]).sample(frac=1, random_state=42).reset_index(drop=True)
 
 # Extract features and labels
 X = df['text'].values
 y = df['label'].values
 
+# Split the data (80% train, 20% test, stratified)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42, shuffle=True
+)
 
-# Split the data into 60% training and 40% testing
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, stratify=y, random_state=42)
+# TF-IDF Vectorizer with restrictions to reduce overfitting
+tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=3000, min_df=10, max_df=0.6)
 
-# Initialize the TfidfVectorizer
-tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_df=0.7)
-
-# Transform the data 
+# Fit and transform
 tfidf_train = tfidf_vectorizer.fit_transform(X_train)
 tfidf_test = tfidf_vectorizer.transform(X_test)
 
-# Initialize the PassiveAggressiveClassifier
-pac = PassiveAggressiveClassifier(max_iter=50)
+# Hyperparameter tuning for PassiveAggressiveClassifier
+param_grid = {
+    'C': [0.1, 0.5, 1.0, 2.0],
+    'max_iter': [50, 100, 200]
+}
+pac = PassiveAggressiveClassifier(random_state=42)
+grid = GridSearchCV(pac, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
+grid.fit(tfidf_train, y_train)
 
-# Train the classifier
-pac.fit(tfidf_train, y_train)
+best_pac = grid.best_estimator_
+print(f"Best parameters: {grid.best_params_}")
 
-# Predict on the training set
-y_train_pred = pac.predict(tfidf_train)
+# Evaluate
+y_train_pred = best_pac.predict(tfidf_train)
+y_test_pred = best_pac.predict(tfidf_test)
 
-# Predict on the testing set
-y_test_pred = pac.predict(tfidf_test)
+print("Training Accuracy: {:.2f}%".format(accuracy_score(y_train, y_train_pred) * 100))
+print("Test Accuracy: {:.2f}%".format(accuracy_score(y_test, y_test_pred) * 100))
+print("\nClassification Report (Test):\n", classification_report(y_test, y_test_pred))
 
-# Perform cross-validation
-cv_scores = cross_val_score(pac, tfidf_train, y_train, cv=5, scoring='accuracy')
-
-# Calculate the accuracy on the training set
-train_accuracy = accuracy_score(y_train, y_train_pred)
-print(f'Training Accuracy: {train_accuracy * 100:.2f}%')
-
-# Precision score on the training set
-train_precision = precision_score(y_train, y_train_pred, pos_label='True')
-print(f'Training Precision: {train_precision * 100:.2f}%')
-
-# Recall score on the training set
-train_recall = recall_score(y_train, y_train_pred, pos_label='True')
-print(f'Training Recall: {train_recall * 100:.2f}%')
-
-# F1 score on the training set
-train_f1 = f1_score(y_train, y_train_pred, pos_label='True')
-print(f'Training F1 Score: {train_f1 * 100:.2f}%')
-
-# ROC AUC score on the training set
-train_roc_auc = roc_auc_score([1 if label == 'True' else 0 for label in y_train], [1 if label == 'True' else 0 for label in y_train_pred])
-print(f'Training ROC AUC Score: {train_roc_auc * 100:.2f}%')
-
-# Print cross-validation scores
-print(f'Cross-Validation Accuracy Scores: {cv_scores}')
+# Cross-validation scores
+scores = cross_val_score(best_pac, tfidf_train, y_train, cv=5)
+print("Cross-validation scores:", scores)
 
 
-
-
-# Classification report 
-print(classification_report(y_test, y_test_pred))
-
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
-    
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
-    plt.yticks(tick_marks, classes)
-
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
-
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, cm[i, j],
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-
-# Visualize confusion matrix for the testing set
-#accuracy score on the test data
-score = accuracy_score(y_test, y_test_pred)
-print(f'Accuracy: {round(score*100,2)}%')
+# Confusion matrix
 cm = confusion_matrix(y_test, y_test_pred)
-plot_confusion_matrix(cm, classes=['FAKE Data', 'REAL Data'])
+print("Confusion Matrix:\n", cm)
+
+# Plot confusion matrix
+plt.figure(figsize=(6, 4))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Fake', 'True'], yticklabels=['Fake', 'True'])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
 plt.show()
 
-# Save the trained model
+# Save the best model and vectorizer
 with open('Models/pac_model.pkl', 'wb') as model_file:
-    pickle.dump(pac, model_file)
+    pickle.dump(best_pac, model_file)
 
-# Save the TfidfVectorizer
 with open('Models/tfidf_vectorizer.pkl', 'wb') as vectorizer_file:
     pickle.dump(tfidf_vectorizer, vectorizer_file)
