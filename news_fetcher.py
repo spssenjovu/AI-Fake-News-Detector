@@ -1,34 +1,47 @@
-import requests
 import os
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables securely
 load_dotenv()
 API_KEY = os.getenv("NEWS_API_KEY")
-BASE_URL = "https://newsapi.org/v2/top-headlines?country=gb&page={page}&pageSize={limit}&apiKey=" + API_KEY
 
 def get_news_articles(page=1, limit=10):
-    """Fetches news articles securely with proper error handling."""
-    url = BASE_URL.format(page=page, limit=limit)
+    """Fetches top UK news headlines with structured metadata and safe error handling."""
+    
+    if not API_KEY:
+        return [{"error": "Missing API key. Please check your .env file."}]
+    
+    endpoint = "https://newsapi.org/v2/top-headlines"
+    params = {
+        "country": "gb",
+        "page": page,
+        "pageSize": limit,
+        "apiKey": API_KEY
+    }
 
     try:
-        response = requests.get(url, timeout=5)  # Timeout prevents hanging requests
-        response.raise_for_status()  # Raise error for bad responses (4xx, 5xx)
-
+        response = requests.get(endpoint, params=params, timeout=5)
+        response.raise_for_status()
         data = response.json()
-        if "articles" not in data or not data["articles"]:
-            return ["Error: No articles found."]
 
-        return [
-            f"{article.get('title', 'No Title Available')} - {article.get('description', 'No Description Available')}"
-            for article in data.get("articles", [])[:limit]
-        ]
+        if not data.get("articles"):
+            return [{"error": "No articles found."}]
+
+        articles = []
+        for article in data["articles"][:limit]:
+            articles.append({
+                "title": article.get("title", "No Title"),
+                "description": article.get("description", "No Description"),
+                "source": article.get("source", {}).get("name", "Unknown"),
+                "url": article.get("url")
+            })
+
+        return articles
 
     except requests.exceptions.Timeout:
-        return ["Error: API request timed out."]
+        return [{"error": "API request timed out."}]
     except requests.exceptions.ConnectionError:
-        return ["Error: Network connection failed."]
+        return [{"error": "Network connection failed."}]
     except requests.exceptions.RequestException as e:
-        return [f"Error fetching news: {e}"]
-    
-    
+        return [{"error": f"Request error: {e}"}]
