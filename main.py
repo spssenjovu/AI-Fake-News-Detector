@@ -1,112 +1,104 @@
 import pandas as pd
 import numpy as np
 import pickle
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.linear_model import PassiveAggressiveClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.model_selection import cross_val_score
+import os
 import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
 import re
+import matplotlib.pyplot as plt
+import itertools
+
+from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import PassiveAggressiveClassifier
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelBinarizer
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_auc_score
+
+# NLTK setup
+nltk.download('punkt')
 nltk.download('stopwords')
-nltk.download('wordnet')
-
 stop_words = set(stopwords.words('english'))
-lemmatizer = WordNetLemmatizer()
 
-def preprocess_text(text):
-    text = re.sub(r'[^a-zA-Z\s]', '', text).lower()  # Clean and lowercase
+def clean_text(text):
+    text = re.sub(r"[^a-zA-Z\s]", "", str(text)).lower()
     tokens = word_tokenize(text)
-    lemmatized_tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words]
-    return ' '.join(lemmatized_tokens)
+    return ' '.join([t for t in tokens if t not in stop_words])
 
+def plot_confusion_matrix(cm, classes, title='Confusion Matrix', cmap=plt.cm.Blues):
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    ticks = np.arange(len(classes))
+    plt.xticks(ticks, classes, rotation=45)
+    plt.yticks(ticks, classes)
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, str(cm[i, j]),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout()
+    plt.show()
 
+# Load and combine data
+columns = ['label', 'statement', 'subject', 'speaker', 'speaker_job', 'state_info',
+           'party_affiliation', 'barely_true_counts', 'false_counts', 'half_true_counts',
+           'mostly_true_counts', 'pants_on_fire_counts', 'context']
 
-# Load the datasets
-df_true = pd.read_csv('true.csv')
-df_fake = pd.read_csv('fake.csv')
+df_train = pd.read_csv('train.tsv', sep='\t', header=None, names=columns)
+df_valid = pd.read_csv('valid.tsv', sep='\t', header=None, names=columns)
+df_test  = pd.read_csv('test.tsv',  sep='\t', header=None, names=columns)
+df = pd.concat([df_train, df_valid, df_test], ignore_index=True)
 
-# Add label column
-df_true['label'] = 'REAL DATA'
-df_fake['label'] = 'FAKE DATA'
-
-df_true = df_true.drop_duplicates()
-df_fake = df_fake.drop_duplicates()
-
-print(df_true.shape, df_fake.shape)  # Compare dataset sizes
-print(df_true['label'].value_counts(), df_fake['label'].value_counts())  # Ensure balance
-
-# Concatenate and shuffle
-df = pd.concat([df_true, df_fake]).sample(frac=1, random_state=42).reset_index(drop=True)
-
-# Extract features and labels
-X = df['text'].values
-y = df['label'].values
-
-# Split the data (80% train, 20% test, stratified)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42, shuffle=True
-)
-
-# TF-IDF Vectorizer with restrictions to reduce overfitting
-tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=3000, min_df=10, max_df=0.6, ngram_range=(1,2))
-# Fit and transform
-tfidf_train = tfidf_vectorizer.fit_transform(X_train)
-tfidf_test = tfidf_vectorizer.transform(X_test)
-
-# Hyperparameter tuning for PassiveAggressiveClassifier
-param_grid = {
-    'C': [0.1, 0.5, 1.0, 2.0, 5.0],
-    'max_iter': [500, 1000, 2000],  # Increased iterations
-    'tol': [1e-3, 1e-4]  # Fine-tune tolerance for better convergence
+label_map = {
+    'true': 'REAL DATA',
+    'mostly-true': 'REAL DATA',
+    'half-true': 'REAL DATA',
+    'false': 'FAKE DATA',
+    'barely-true': 'FAKE DATA',
+    'pants-fire': 'FAKE DATA'
 }
+df['label'] = df['label'].map(label_map)
+df.dropna(subset=['label', 'statement'], inplace=True)
+df['clean_statement'] = df['statement'].apply(clean_text)
 
-pac = PassiveAggressiveClassifier(random_state=42)
-grid = GridSearchCV(pac, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
-grid.fit(tfidf_train, y_train)
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(df['clean_statement'], df['label'], 
+                                                    test_size=0.2, stratify=df['label'], random_state=42)
 
-best_pac = grid.best_estimator_
-print(f"Best parameters: {grid.best_params_}")
+# TF-IDF
+vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(1,2), max_df=0.9, min_df=2, max_features=5000)
+X_train_vec = vectorizer.fit_transform(X_train)
+X_test_vec = vectorizer.transform(X_test)
 
+# Calibrated classifier
+base_model = PassiveAggressiveClassifier(C=0.5, max_iter=50, tol=1e-4, class_weight='balanced', random_state=42)
+model = CalibratedClassifierCV(estimator=base_model, method='sigmoid', cv=3)
+model.fit(X_train_vec, y_train)
+y_pred = model.predict(X_test_vec)
 
+# Evaluation
+print("Accuracy: {:.2f}%".format(accuracy_score(y_test, y_pred) * 100))
+print("Classification Report:\n", classification_report(y_test, y_pred))
 
-# Evaluate
-y_train_pred = best_pac.predict(tfidf_train)
-y_test_pred = best_pac.predict(tfidf_test)
+# ROC-AUC Score
+lb = LabelBinarizer()
+y_test_bin = lb.fit_transform(y_test)
+y_proba = model.predict_proba(X_test_vec)[:, 1]
+roc_auc = roc_auc_score(y_test_bin, y_proba)
+print("ROC-AUC Score: {:.4f}".format(roc_auc))
 
-print("Training Accuracy: {:.2f}%".format(accuracy_score(y_train, y_train_pred) * 100))
-print("Test Accuracy: {:.2f}%".format(accuracy_score(y_test, y_test_pred) * 100))
-print("\nClassification Report (Test):\n", classification_report(y_test, y_test_pred))
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred, labels=['FAKE DATA', 'REAL DATA'])
+plot_confusion_matrix(cm, classes=['FAKE DATA', 'REAL DATA'])
 
-# Cross-validation scores
-scores = cross_val_score(best_pac, tfidf_train, y_train, cv=5)
-print("Cross-validation scores:", scores)
-
-Y_pred = best_pac.predict(tfidf_test)
-score = accuracy_score(y_test, Y_pred)
-
-
-# Confusion matrix
-cm = confusion_matrix(y_test, y_test_pred)
-print("Confusion Matrix:\n", cm)
-
-# Plot confusion matrix
-plt.figure(figsize=(6, 4))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Real', 'Fake'], yticklabels=['Real', 'Fake'])
-plt.xlabel('FAKE DATA')
-plt.ylabel('REAL DATA')
-plt.title('Confusion Matrix')
-plt.show()
-
-# Save the best model and vectorizer
-with open('Models/pac_model.pkl', 'wb') as model_file:
-    pickle.dump(best_pac, model_file)
-
-with open('Models/tfidf_vectorizer.pkl', 'wb') as vectorizer_file:
-    pickle.dump(tfidf_vectorizer, vectorizer_file)
+# Save model and vectorizer
+os.makedirs('Models', exist_ok=True)
+with open('Models/pac_model_liar.pkl', 'wb') as f:
+    pickle.dump(model, f)
+with open('Models/tfidf_vectorizer_liae.pkl', 'wb') as f:
+    pickle.dump(vectorizer, f)

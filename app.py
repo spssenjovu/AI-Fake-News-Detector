@@ -46,7 +46,7 @@ mysql = MySQLdb.connect(
 cursor = mysql.cursor()
 
 # Load the trained model
-model_path = os.path.join(os.getcwd(), 'Models', 'pac_model.pkl')
+model_path = os.path.join(os.getcwd(), 'Models', 'pac_model_liar.pkl')
 try:
     model = pickle.load(open(model_path, 'rb'))
     print("✅ Model loaded successfully!")
@@ -55,7 +55,7 @@ except Exception as e:
     model = None
 
 # Load the trained vectorizer
-vectorizer_path = os.path.join(os.getcwd(), 'Models', 'tfidf_vectorizer.pkl')
+vectorizer_path = os.path.join(os.getcwd(), 'Models', 'tfidf_vectorizer_liar.pkl')
 try:
     vectorizer = pickle.load(open(vectorizer_path, 'rb'))
     print("✅ Vectorizer loaded successfully!")
