@@ -1,5 +1,5 @@
 # AI Fake News Detector
-An innovative machine learning project to detect any fake news
+An innovative machine learning project designed to detect fake news with a focus on transparency, trust signals, and ethical AI practices.
 
 # Table of Contents
 - Overview
@@ -46,7 +46,7 @@ curl -X POST http://localhost:5000/predict -H "Content-Type: application/json" -
 # Model Details
 - Vectorization: TF-IDF
 - Classifier: PassiveAggressiveClassifier
-- Dataset: Fake News Dataset from Kaggle
+- Dataset: LIAR Dataset from Kaggle
 
 # API Endpoints
 | Endpoint  | Method | Description                  |
