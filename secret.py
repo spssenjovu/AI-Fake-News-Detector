@@ -1,4 +1,4 @@
-from cryptography.fernet import Fernet  # type: ignore
+from cryptography.fernet import Fernet 
 
 key = Fernet.generate_key()
 print(key.decode())

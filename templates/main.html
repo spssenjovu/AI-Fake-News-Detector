@@ -1,45 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI News Detector</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/page.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/page.css') }}" />
 </head>
 <body>
     <header>
-            <nav class="navbar">
-                <h1 class="navbar-title">AI Fake News Detector</h1>
-                <ul>
-                    <li><a href="{{ url_for('home') }}">Home</a></li>
-                    <li><a href="{{ url_for('about') }}">About</a></li>
-                    <li><a href="{{ url_for('settings') }}">Settings</a></li>
-                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
-                </ul>
-            </nav>
+        <nav class="navbar">
+            <h1 class="navbar-title">AI Fake News Detector</h1>
+            <ul>
+                <li><a href="{{ url_for('home') }}">Home</a></li>             
+                <li><a href="{{ url_for('about') }}">About</a></li> 
+                <li><a href="{{ url_for('settings') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
     </header>
-        <main>
-            <div class="container">
+
+    <main>
+        <div class="container">
             <form id="news-form">
                 <label for="news">Enter News Link:</label>
                 <textarea id="news" name="news" rows="5" cols="30" required></textarea>
-                    <button type="submit">Analyze</button>
+                <input type="text" id="news" />
+                <button type="submit">Analyze</button>
             </form>
-            </div>
-        </main>
-        
-        <footer>
-            <p>&copy; 2025 AI News Detector | Developed by Simon | University of Plymouth</p>
-        </footer>
 
-        {% if result %}
-        <section>
-            <h2>Detection Result:</h2>
-            <p>{{ result }}</p>
-        </section>
-        {% endif %}
-    </div>
+            {% if results %}
+            <section class="results-section">
+                <h2>Detection Results</h2>
+                {% for article in results %}
+                <div class="result-card">
+                    <p><strong>URL:</strong> <a href="{{ article.url }}" target="_blank">{{ article.url }}</a></p>
+                    <p><strong>Prediction:</strong> {{ article.classification }} (Confidence: {{ article.confidence }})</p>
+                    <p><strong>Source Trust:</strong> {{ article.trust_level }} — {{ article.source }}</p>
+                    <p><strong>Explanation:</strong> {{ article.explanation }}</p>
+                </div>
+                {% endfor %}
+            </section>
+            {% endif %}
+        </div>
+    </main>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <footer>
+        <p>&copy; 2025 AI News Detector | Developed by Simon | University of Plymouth</p>
+    </footer>
+
+    <script src="/static/js/main.js" defer></script>
 </body>
 </html>

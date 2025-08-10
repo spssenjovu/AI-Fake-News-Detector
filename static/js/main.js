@@ -1,43 +1,49 @@
-document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('news-form');
-    if (!form) return;
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("news-form");
+  const input = document.getElementById("news");
+  const resultsContainer = document.getElementById("results");
 
-    form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        const newsText = document.getElementById('news').value.trim();
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const rawInput = input.value.trim();
+    if (!rawInput) return;
 
-        if (!newsText) {
-            alert('Please enter a news link or text.');
-            return;
-        }
+    const urls = rawInput.split(/\s+/);
+    const query = urls.map(u => `urls=${encodeURIComponent(u)}`).join("&");
 
-        // Remove previous result if it exists
-        const oldResult = document.getElementById('detection-result');
-        if (oldResult) oldResult.remove();
+    // Show loading state
+    resultsContainer.innerHTML = `<p>🔍 Analysing ${urls.length} article${urls.length > 1 ? "s" : ""}...</p>`;
 
-        fetch('/predict', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ news: newsText })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log("Server response:", data);
+    try {
+      const response = await fetch(`/predict-news?${query}`);
+      const data = await response.json();
 
-            const resultContainer = document.createElement('section');
-            resultContainer.id = 'detection-result';
+      // Clear previous results
+      resultsContainer.innerHTML = "";
 
-            if (data.error) {
-                resultContainer.innerHTML = `<h2>Error:</h2><p>${data.error}</p>`;
-            } else {
-                resultContainer.innerHTML = `<h2>Detection Result:</h2><p>${data.prediction}</p>`;
-            }
+      if (!data.results || data.results.length === 0) {
+        resultsContainer.innerHTML = "<p>No prediction results found.</p>";
+        return;
+      }
 
-            form.insertAdjacentElement('afterend', resultContainer);
-        })
-        .catch(error => {
-            console.error("Fetch error:", error);
-            alert('An error occurred while analyzing news.');
-        });
-    });
+      data.results.forEach(article => {
+        const card = document.createElement("div");
+        card.className = "result-card";
+
+        card.innerHTML = `
+          <h3><a href="${article.url}" target="_blank">${article.url}</a></h3>
+          <p><strong>Prediction:</strong> ${article.classification} (Confidence: ${article.confidence})</p>
+          ${article.credibility_score !== undefined ? `<p><strong>Credibility Score:</strong> ${article.credibility_score}</p>` : ""}
+          <p><strong>Source Trust:</strong> ${article.trust_level} — ${article.source}</p>
+          <p><strong>Explanation:</strong> ${article.explanation}</p>
+          <p class="version">Model Version: ${article.model_version}</p>
+        `;
+
+        resultsContainer.appendChild(card);
+      });
+    } catch (error) {
+      console.error("Error fetching prediction:", error);
+      resultsContainer.innerHTML = "<p> Failed to fetch prediction. Please try again later.</p>";
+    }
+  });
 });

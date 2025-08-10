@@ -12,14 +12,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from utils.preprocessing import preprocess_text
 from scrapper.extractor import extract_multiple_articles
 from routes.prediction import classify_news_articles
-from utils.credibility_layer import get_domain_trust, explain_prediction
-from utils.credibility_layer import compute_credibility_score
+from utils.credibility_layer import get_domain_trust, explain_prediction, compute_credibility_score
 
-
-# --- Load environment variables ---
+# Load environment variables
 load_dotenv()
 
-# --- Flask Configuration ---
+# Flask setup
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret')
 app.secret_key = app.config['SECRET_KEY']
@@ -32,45 +30,48 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax'
 )
 
-# --- Initialize Security ---
+# Security
 csrf = CSRFProtect(app)
 limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
 
-# --- Encryption ---
+# Encryption
 encryption_key = os.getenv("ENCRYPTION_KEY")
 if not encryption_key:
     raise ValueError("Missing ENCRYPTION_KEY.")
 fernet = Fernet(encryption_key)
 
-# --- MySQL Connection ---
-mysql = MySQLdb.connect(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    user=app.config['MYSQL_USER'],
-    passwd=app.config['MYSQL_PASSWORD'],
-    db=app.config['MYSQL_DB']
-)
-cursor = mysql.cursor()
+# MySQL connection
+try:
+    mysql = MySQLdb.connect(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        user=app.config['MYSQL_USER'],
+        passwd=app.config['MYSQL_PASSWORD'],
+        db=app.config['MYSQL_DB']
+    )
+    cursor = mysql.cursor()
+except MySQLdb.Error as e:
+    raise RuntimeError(f"Database connection failed: {e}")
 
-# --- Load model and vectorizer ---
+# Load model and vectorizer
 def load_pickle(path, name):
     try:
         with open(path, 'rb') as f:
-            print(f"✅ {name} loaded.")
+            print(f"{name} loaded.")
             return pickle.load(f)
     except Exception as e:
-        print(f"❌ Failed to load {name}: {e}")
+        print(f"Failed to load {name}: {e}")
         return None
 
 model = load_pickle('Models/pac_model.pkl', "Model")
 vectorizer = load_pickle('Models/tfidf_vectorizer.pkl', "Vectorizer")
 MODEL_VERSION = os.getenv("MODEL_VERSION", "v1.0.0")
 
-# --- Helper ---
+# Helper
 def get_decrypted_email():
     enc = session.get("email")
     return fernet.decrypt(enc.encode()).decode() if enc else None
 
-# --- Routes ---
+# Routes
 @app.route('/')
 def login():
     return render_template('login.html')
@@ -85,15 +86,18 @@ def submit_login():
     data = request.get_json(force=True)
     email, password = data.get("email"), data.get("password")
 
-    cursor.execute("SELECT password_hash FROM users WHERE email=%s", (email,))
-    user = cursor.fetchone()
+    try:
+        cursor.execute("SELECT password_hash FROM users WHERE email=%s", (email,))
+        user = cursor.fetchone()
+    except MySQLdb.Error as e:
+        return jsonify({"success": False, "message": f"DB error: {e}"}), 500
 
     if user and check_password_hash(user[0], password):
         session['email'] = fernet.encrypt(email.encode()).decode()
-        flash("✅ Login successful!", "success")
+        flash("Login successful!", "success")
         return jsonify({"success": True, "redirect": url_for('home')})
     else:
-        flash("❌ Invalid credentials.", "danger")
+        flash("Invalid credentials.", "danger")
         return jsonify({"success": False, "message": "Invalid credentials."}), 401
 
 @app.route('/register')
@@ -116,9 +120,13 @@ def submit_register():
 
     hashed = generate_password_hash(password)
     try:
-        cursor.execute("INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",
-                       (firstname, lastname, email, hashed))
+        cursor.execute(
+            "INSERT INTO users (firstname, lastname, email, password_hash) VALUES (%s, %s, %s, %s)",
+            (firstname, lastname, email, hashed)
+        )
         mysql.commit()
+    except MySQLdb.IntegrityError:
+        return jsonify({"success": False, "message": "Email already registered."}), 409
     except MySQLdb.Error as e:
         return jsonify({"success": False, "message": f"Database error: {e}"}), 500
 
@@ -147,18 +155,18 @@ def predict():
         cleaned = preprocess_text(data['news'])
         vector = vectorizer.transform([cleaned])
         prediction = model.predict(vector)[0]
-
-        # Optional: debug info
-        print("Prediction:", prediction)
-        print("Classes:", model.classes_)
-
-        return jsonify({"prediction": prediction})
+        confidence = model.decision_function(vector)[0]
+        return jsonify({
+            "prediction": prediction,
+            "confidence": round(float(confidence), 3),
+            "model_version": MODEL_VERSION
+        })
     except Exception as e:
         print(f"Prediction error: {e}")
         return jsonify({"error": "Prediction failed"}), 500
 
 @app.route('/predict-news', methods=['GET'])
-@limiter.limit("5 per minute")
+@limiter.limit("30 per minute")
 def predict_news():
     urls = request.args.getlist('urls')
     if not urls:
@@ -179,7 +187,7 @@ def predict_news():
                 "confidence": 0,
                 "trust_level": trust_level,
                 "source": source,
-                "explanation": "⚠️ Article too short or unavailable.",
+                "explanation": "Article too short or unavailable.",
                 "model_version": MODEL_VERSION
             })
             continue
@@ -190,7 +198,7 @@ def predict_news():
             pred = model.predict(vector)[0]
             confidence = model.decision_function(vector)[0]
             explanation = explain_prediction(["sensational", "fraud", "breaking", "exclusive"])  # Placeholder
-            
+
             credibility = compute_credibility_score(
                 confidence,
                 trust_level,
@@ -232,16 +240,16 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
-# --- Error Handling ---
+# Error handling
 @app.errorhandler(401)
 def unauthorized(e):
     return jsonify({'error': 'Unauthorized'}), 401
 
 @app.errorhandler(500)
 def internal_error(e):
-    flash("🚨 Internal Server Error.", "danger")
+    flash("Internal Server Error.", "danger")
     return jsonify({'error': 'Internal server error'}), 500
 
-# --- Run Server ---
+# Run server
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
