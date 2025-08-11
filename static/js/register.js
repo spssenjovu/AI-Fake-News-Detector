@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             alert('An error occurred. Please try again later.');
         });
-    }); // <-- This closes the submit event listener
-}); // <-- This closes the DOMContentLoaded event listener
+    }); // This closes the submit event listener
+}); // This closes the DOMContentLoaded event listener
 
     

@@ -1,5 +1,5 @@
 import os
-import pickle
+import joblib
 import MySQLdb
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
@@ -9,18 +9,21 @@ from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# Local imports
 from utils.preprocessing import preprocess_text
-from scrapper.extractor import extract_multiple_articles
-from routes.prediction import classify_news_articles
+from scrapper.extractor import extract_article
+from routes.prediction import preprocess_and_classify
 from utils.credibility_layer import get_domain_trust, explain_prediction, compute_credibility_score
 
 # Load environment variables
 load_dotenv()
 
-# Flask setup
+# Flask app setup
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret')
 app.secret_key = app.config['SECRET_KEY']
+
+# App configuration
 app.config.update(
     MYSQL_USER=os.getenv('MYSQL_USER'),
     MYSQL_PASSWORD=os.getenv('MYSQL_PASSWORD'),
@@ -30,11 +33,11 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax'
 )
 
-# Security
+# Security setup
 csrf = CSRFProtect(app)
 limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
 
-# Encryption
+# Encryption setup
 encryption_key = os.getenv("ENCRYPTION_KEY")
 if not encryption_key:
     raise ValueError("Missing ENCRYPTION_KEY.")
@@ -52,21 +55,15 @@ try:
 except MySQLdb.Error as e:
     raise RuntimeError(f"Database connection failed: {e}")
 
-# Load model and vectorizer
-def load_pickle(path, name):
-    try:
-        with open(path, 'rb') as f:
-            print(f"{name} loaded.")
-            return pickle.load(f)
-    except Exception as e:
-        print(f"Failed to load {name}: {e}")
-        return None
+# Load ML model and vectorizer
+MODEL_VERSION = "1.0.0"
+try:
+    model = joblib.load("Models/pac_model.pkl")
+    vectorizer = joblib.load("Models/tfidf_vectorizer.pkl")
+except Exception as e:
+    raise RuntimeError(f"Model loading failed: {e}")
 
-model = load_pickle('Models/pac_model.pkl', "Model")
-vectorizer = load_pickle('Models/tfidf_vectorizer.pkl', "Vectorizer")
-MODEL_VERSION = os.getenv("MODEL_VERSION", "v1.0.0")
-
-# Helper
+# Helper function
 def get_decrypted_email():
     enc = session.get("email")
     return fernet.decrypt(enc.encode()).decode() if enc else None
@@ -139,32 +136,6 @@ def home():
         return redirect(url_for('login'))
     return render_template('main.html')
 
-@app.route('/predict', methods=['POST'])
-@csrf.exempt
-@limiter.limit("5 per minute")
-def predict():
-    if 'email' not in session:
-        flash("Login required.", "warning")
-        return redirect(url_for('login'))
-
-    data = request.get_json(silent=True)
-    if not data or 'news' not in data:
-        return jsonify({"error": "Invalid input"}), 400
-
-    try:
-        cleaned = preprocess_text(data['news'])
-        vector = vectorizer.transform([cleaned])
-        prediction = model.predict(vector)[0]
-        confidence = model.decision_function(vector)[0]
-        return jsonify({
-            "prediction": prediction,
-            "confidence": round(float(confidence), 3),
-            "model_version": MODEL_VERSION
-        })
-    except Exception as e:
-        print(f"Prediction error: {e}")
-        return jsonify({"error": "Prediction failed"}), 500
-
 @app.route('/predict-news', methods=['GET'])
 @limiter.limit("30 per minute")
 def predict_news():
@@ -172,10 +143,9 @@ def predict_news():
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
 
-    articles = extract_multiple_articles(urls)
     results = []
-
-    for url, article in zip(urls, articles):
+    for url in urls:
+        article = extract_article(url)
         trust_info = get_domain_trust(url)
         trust_level = trust_info.get("trust_level", "Unknown")
         source = trust_info.get("source_name", "Not Verified")
@@ -193,26 +163,23 @@ def predict_news():
             continue
 
         try:
-            cleaned = preprocess_text(article)
-            vector = vectorizer.transform([cleaned])
-            pred = model.predict(vector)[0]
-            confidence = model.decision_function(vector)[0]
-            explanation = explain_prediction(["sensational", "fraud", "breaking", "exclusive"])  # Placeholder
+            predictions = preprocess_and_classify([article], model=model, vectorizer=vectorizer)
+            pred_result = predictions[0]
 
             credibility = compute_credibility_score(
-                confidence,
+                pred_result["confidence"],
                 trust_level,
                 flags=["sensational", "fraud"]
             )
 
             results.append({
                 "url": url,
-                "classification": pred,
-                "confidence": round(float(confidence), 3),
+                "classification": pred_result["classification"],
+                "confidence": pred_result["confidence"],
                 "credibility_score": credibility,
                 "trust_level": trust_level,
                 "source": source,
-                "explanation": explanation,
+                "explanation": explain_prediction(["sensational", "fraud", "breaking", "exclusive"]),
                 "model_version": MODEL_VERSION
             })
         except Exception as e:
@@ -232,7 +199,17 @@ def about():
 
 @app.route('/settings')
 def settings():
-    return render_template('settings.html')
+    if 'email' not in session:
+        flash("Please log in first.", "warning")
+        return redirect(url_for('login'))
+
+    try:
+        decrypted_email = get_decrypted_email()
+    except Exception as e:
+        decrypted_email = "Unavailable"
+        print("Decryption error:", e)
+
+    return render_template('settings.html', email=decrypted_email)
 
 @app.route('/logout')
 def logout():
@@ -240,7 +217,7 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
-# Error handling
+# Error handlers
 @app.errorhandler(401)
 def unauthorized(e):
     return jsonify({'error': 'Unauthorized'}), 401

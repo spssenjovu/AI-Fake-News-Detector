@@ -5,20 +5,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
     const rawInput = input.value.trim();
-    if (!rawInput) return;
+    if (!rawInput) {
+      resultsContainer.innerHTML = "<p>Please enter at least one news URL.</p>";
+      return;
+    }
 
     const urls = rawInput.split(/\s+/);
     const query = urls.map(u => `urls=${encodeURIComponent(u)}`).join("&");
 
-    // Show loading state
-    resultsContainer.innerHTML = `<p>🔍 Analysing ${urls.length} article${urls.length > 1 ? "s" : ""}...</p>`;
+    resultsContainer.innerHTML = `<p>🔍 Analyzing ${urls.length} article${urls.length > 1 ? "s" : ""}...</p>`;
 
     try {
       const response = await fetch(`/predict-news?${query}`);
-      const data = await response.json();
+      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
 
-      // Clear previous results
+      const data = await response.json();
       resultsContainer.innerHTML = "";
 
       if (!data.results || data.results.length === 0) {
@@ -30,10 +33,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const card = document.createElement("div");
         card.className = "result-card";
 
+        const color = article.classification === "Fake" ? "red" :
+                      article.classification === "Real" ? "green" : "gray";
+
         card.innerHTML = `
           <h3><a href="${article.url}" target="_blank">${article.url}</a></h3>
-          <p><strong>Prediction:</strong> ${article.classification} (Confidence: ${article.confidence})</p>
-          ${article.credibility_score !== undefined ? `<p><strong>Credibility Score:</strong> ${article.credibility_score}</p>` : ""}
+          <p><strong>Prediction:</strong> <span style="color:${color}">${article.classification}</span>
+             (Confidence: ${article.confidence})</p>
+          ${article.credibility_score !== undefined
+            ? `<p><strong>Credibility Score:</strong> ${article.credibility_score}</p>` : ""}
           <p><strong>Source Trust:</strong> ${article.trust_level} — ${article.source}</p>
           <p><strong>Explanation:</strong> ${article.explanation}</p>
           <p class="version">Model Version: ${article.model_version}</p>

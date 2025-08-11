@@ -1,53 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI News Detector</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/page.css') }}" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI News Detector</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/page.css') }}" />
 </head>
 <body>
-    <header>
-        <nav class="navbar">
-            <h1 class="navbar-title">AI Fake News Detector</h1>
-            <ul>
-                <li><a href="{{ url_for('home') }}">Home</a></li>             
-                <li><a href="{{ url_for('about') }}">About</a></li> 
-                <li><a href="{{ url_for('settings') }}">Settings</a></li>
-                <li><a href="{{ url_for('logout') }}">Logout</a></li>
-            </ul>
-        </nav>
-    </header>
+  <header>
+    <nav class="navbar">
+      <h1 class="navbar-title">AI Fake News Detector</h1>
+      <ul>
+        <li><a href="{{ url_for('home') }}">Home</a></li>
+        <li><a href="{{ url_for('about') }}">About</a></li>
+        <li><a href="{{ url_for('settings') }}">Settings</a></li>
+        <li><a href="{{ url_for('logout') }}">Logout</a></li>
+      </ul>
+    </nav>
+  </header>
 
-    <main>
-        <div class="container">
-            <form id="news-form">
-                <label for="news">Enter News Link:</label>
-                <textarea id="news" name="news" rows="5" cols="30" required></textarea>
-                <input type="text" id="news" />
-                <button type="submit">Analyze</button>
-            </form>
+  <main>
+    <div class="container">
+      <form id="news-form">
+        <label for="news">Enter News Link(s):</label>
+        <textarea id="news" name="news" rows="5" cols="50" placeholder="Paste one or more URLs separated by spaces" required></textarea>
+        <button type="submit">Analyse</button>
+      </form>
 
-            {% if results %}
-            <section class="results-section">
-                <h2>Detection Results</h2>
-                {% for article in results %}
-                <div class="result-card">
-                    <p><strong>URL:</strong> <a href="{{ article.url }}" target="_blank">{{ article.url }}</a></p>
-                    <p><strong>Prediction:</strong> {{ article.classification }} (Confidence: {{ article.confidence }})</p>
-                    <p><strong>Source Trust:</strong> {{ article.trust_level }} — {{ article.source }}</p>
-                    <p><strong>Explanation:</strong> {{ article.explanation }}</p>
-                </div>
-                {% endfor %}
-            </section>
-            {% endif %}
-        </div>
-    </main>
+      <section id="results" class="results-section">
+        {% if results %}
+          <h2>Detection Results</h2>
+          {% for article in results %}
+            <div class="result-card">
+              <p><strong>URL:</strong> <a href="{{ article.url }}" target="_blank">{{ article.url }}</a></p>
+              <p><strong>Prediction:</strong> {{ article.classification }} (Confidence: {{ article.confidence }})</p>
+              {% if article.credibility_score is defined %}
+                <p><strong>Credibility Score:</strong> {{ article.credibility_score }}</p>
+              {% endif %}
+              <p><strong>Source Trust:</strong> {{ article.trust_level }} — {{ article.source }}</p>
+              <p><strong>Explanation:</strong> {{ article.explanation }}</p>
+              <p class="version">Model Version: {{ article.model_version }}</p>
+            </div>
+          {% endfor %}
+        {% endif %}
+      </section>
+    </div>
+  </main>
 
-    <footer>
-        <p>&copy; 2025 AI News Detector | Developed by Simon | University of Plymouth</p>
-    </footer>
+  <footer>
+    <p>&copy; 2025 AI News Detector | Developed by Simon | University of Plymouth</p>
+  </footer>
 
-    <script src="/static/js/main.js" defer></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
 </body>
 </html>
