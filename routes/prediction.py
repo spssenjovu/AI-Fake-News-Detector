@@ -1,35 +1,24 @@
-from utils.preprocessing import preprocess_text
+def preprocess_and_classify(articles, model, vectorizer=None, fake_threshold=0.5):
+    if vectorizer is None:
+        model_input = articles
+    else:
+        from utils.preprocessing import preprocess_text
 
-def preprocess_and_classify(articles, model, vectorizer):
-    processed = [preprocess_text(article) for article in articles]
-    transformed = vectorizer.transform(processed)
-    predictions = model.predict(transformed)
-    confidences = model.predict_proba(transformed).max(axis=1)
+        processed = [preprocess_text(article) for article in articles]
+        model_input = vectorizer.transform(processed)
 
-    return [
-        {"classification": pred, "confidence": float(conf)}
-        for pred, conf in zip(predictions, confidences)
-    ]
+    probabilities = model.predict_proba(model_input)
+    classes = list(model.classes_)
+    fake_index = classes.index("FAKE DATA")
 
-
-def classify_news_articles(articles):
     results = []
-    processed_articles = vectorizer.transform(articles)
-    predictions = model.predict(processed_articles)
-    probabilities = model.predict_proba(processed_articles)
-
-    for article, prediction, prob in zip(articles, predictions, probabilities):
-        classification = "Fake" if prediction == 1 else "Real"
-        confidence = round(max(prob), 3)
-
+    for probability in probabilities:
+        fake_score = float(probability[fake_index])
+        classification = "Fake" if fake_score >= fake_threshold else "Real"
         results.append({
-            "text": article,
             "classification": classification,
-            "confidence": confidence,
-            "confidence_scores": {
-                "Fake": round(prob[1], 3),
-                "Real": round(prob[0], 3)
-            }
+            "confidence": fake_score if classification == "Fake" else 1.0 - fake_score,
+            "confidence_scores": {"Fake": fake_score, "Real": 1.0 - fake_score},
         })
 
     return results

@@ -33,6 +33,25 @@ git clone https://github.com/spssenjovu/AI-Fake-News-Detector.git
 cd AI-Fake-News-Detector
 pip install -r requirements.txt
 
+## Run with Docker Compose
+Copy `.env.example` to `.env`, replace the placeholder passwords, and set fresh
+application keys. Generate the keys with:
+
+```powershell
+python -c "import secrets; print(secrets.token_hex(32))"
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Use the first value for `SECRET_KEY` and the second for `ENCRYPTION_KEY` in `.env`,
+then start the services:
+
+```powershell
+docker compose up --build
+```
+
+The app is available at http://localhost:5000. The Compose file mounts the project
+directory into the container, so the model files under `Models/` are available at runtime.
+
 # Usage 
 
 ## Run the Flask App
@@ -44,14 +63,20 @@ Access the web interface at http://localhost:5000
 curl -X POST http://localhost:5000/predict -H "Content-Type: application/json" -d '{"text": "Breaking news: AI is taking over!"}'
 
 # Model Details
-- Vectorization: TF-IDF
-- Classifier: PassiveAggressiveClassifier
-- Dataset: LIAR Dataset from Kaggle
+- Text features: TF-IDF word unigrams and bigrams
+- Classifier: calibrated Passive-Aggressive model with training-only oversampling and a validation-selected Fake-class threshold
+- Dataset: LIAR train, validation, and test splits, kept separate during evaluation
+- Training command: `python main.py` (writes `Models/news_pipeline.pkl`)
+
+The model maps LIAR's six truthfulness labels into two broad classes. LIAR contains
+short political claims, not full news articles; predictions on scraped articles are
+therefore estimates and are not independent fact-checks. The displayed source
+directory match is separate context and does not affect the model prediction.
 
 # API Endpoints
 | Endpoint  | Method | Description                  |
 | ----------| -------| -----------------------------|
-| /predict  | POST | Classifies news as real or fake|
+| /predict-news | GET | Extracts and classifies one or more article URLs|
 | /register | POST | Registers a new user           |
 | /login    | POST | Authenticates user login       |
 

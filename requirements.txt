@@ -1,11 +1,21 @@
 Flask>=2.2.3
+Flask-Limiter>=3.5
+Flask-WTF>=1.2
 pandas>=2.0.0
 scikit-learn>=1.6.1
+imbalanced-learn>=0.13.0
 numpy>=1.26.4
 seaborn>=0.12.2
 nltk>=3.8.1
 matplotlib>=3.7.1
 regex>=2023.3.23
+python-dotenv>=1.0.0
+cryptography>=42.0.0
+newspaper3k>=0.2.8
+lxml_html_clean>=0.1.0
+validators>=0.22.0
+contractions>=0.1.73
+mysqlclient>=2.2.7
 
 # MySQL dependencies
 mysql-connector-python>=8.0.33

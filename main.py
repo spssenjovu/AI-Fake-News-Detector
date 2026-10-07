@@ -1,125 +1,134 @@
-import pandas as pd
+from pathlib import Path
+
+import joblib
 import numpy as np
-import pickle
-import os
-import nltk
-import re
-import itertools
-import matplotlib.pyplot as plt
-
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-
+import pandas as pd
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.pipeline import Pipeline
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import PassiveAggressiveClassifier
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.preprocessing import LabelBinarizer
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_auc_score
-from imblearn.over_sampling import RandomOverSampler
+from sklearn.metrics import balanced_accuracy_score, classification_report, confusion_matrix, roc_auc_score, roc_curve
 
-# NLTK setup
-nltk.download('punkt')
-nltk.download('stopwords')
-stop_words = set(stopwords.words('english'))
+ROOT_DIR = Path(__file__).resolve().parent
+MODEL_DIR = ROOT_DIR / "Models"
+MODEL_PATH = MODEL_DIR / "news_pipeline.pkl"
+FAKE_LABEL = "FAKE DATA"
+REAL_LABEL = "REAL DATA"
 
-def clean_text(text):
-    text = re.sub(r"[^a-zA-Z\s]", "", str(text)).lower()
-    tokens = word_tokenize(text)
-    return ' '.join([t for t in tokens if t not in stop_words])
-
-def plot_confusion_matrix(cm, classes, title='Confusion Matrix', cmap=plt.cm.Blues):
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    ticks = np.arange(len(classes))
-    plt.xticks(ticks, classes, rotation=45)
-    plt.yticks(ticks, classes)
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, str(cm[i, j]),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-    plt.tight_layout()
-    plt.show()
-
-# Load and merge LIAR dataset
-columns = ['label', 'statement', 'subject', 'speaker', 'speaker_job', 'state_info',
-           'party_affiliation', 'barely_true_counts', 'false_counts', 'half_true_counts',
-           'mostly_true_counts', 'pants_on_fire_counts', 'context']
-
-df = pd.concat([
-    pd.read_csv('train.tsv', sep='\t', header=None, names=columns),
-    pd.read_csv('valid.tsv', sep='\t', header=None, names=columns),
-    pd.read_csv('test.tsv',  sep='\t', header=None, names=columns)
-], ignore_index=True)
-
-# Map six classes to binary
-label_map = {
-    'true': 'REAL DATA',
-    'mostly-true': 'REAL DATA',
-    'half-true': 'REAL DATA',
-    'false': 'FAKE DATA',
-    'barely-true': 'FAKE DATA',
-    'pants-fire': 'FAKE DATA'
+DATA_COLUMNS = [
+    "label", "statement", "subject", "speaker", "speaker_job", "state_info",
+    "party_affiliation", "barely_true_counts", "false_counts", "half_true_counts",
+    "mostly_true_counts", "pants_on_fire_counts", "context",
+]
+LABEL_MAP = {
+    "true": REAL_LABEL,
+    "mostly-true": REAL_LABEL,
+    "half-true": REAL_LABEL,
+    "false": FAKE_LABEL,
+    "barely-true": FAKE_LABEL,
+    "pants-fire": FAKE_LABEL,
 }
-df['label'] = df['label'].map(label_map)
-df.dropna(subset=['label', 'statement'], inplace=True)
-df['clean_statement'] = df['statement'].apply(clean_text)
 
-print("\nLabel Distribution:\n", df['label'].value_counts(normalize=True))
 
-# Split data
-X = df['clean_statement']
-y = df['label']
-X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                    test_size=0.2,
-                                                    stratify=y,
-                                                    random_state=42)
+def load_split(filename):
+    dataset = pd.read_csv(ROOT_DIR / filename, sep="\t", header=None, names=DATA_COLUMNS)
+    dataset["label"] = dataset["label"].map(LABEL_MAP)
+    dataset.dropna(subset=["label", "statement"], inplace=True)
+    return dataset["statement"].astype(str), dataset["label"]
 
-# TF-IDF
-vectorizer = TfidfVectorizer(stop_words='english', max_df=0.7, min_df=2, ngram_range=(1,2), max_features=10000)
-X_train_vec = vectorizer.fit_transform(X_train)
-X_test_vec = vectorizer.transform(X_test)
 
-# Balance training data
-ros = RandomOverSampler(random_state=42)
-X_train_bal, y_train_bal = ros.fit_resample(X_train_vec, y_train)
+def build_model():
+    text_classifier = Pipeline([
+        ("tfidf", TfidfVectorizer(
+            stop_words="english",
+            max_df=0.7,
+            min_df=2,
+            ngram_range=(1, 2),
+            max_features=10000,
+        )),
+        ("oversample", RandomOverSampler(random_state=42)),
+        ("classifier", PassiveAggressiveClassifier(
+            C=0.5,
+            max_iter=1000,
+            tol=1e-4,
+            random_state=42,
+        )),
+    ])
+    return CalibratedClassifierCV(estimator=text_classifier, method="sigmoid", cv=3)
 
-# Calibrated Passive-Aggressive model
-base_model = PassiveAggressiveClassifier(C=0.5, max_iter=50, tol=1e-4, class_weight='balanced', random_state=42)
-model = CalibratedClassifierCV(base_model, method='sigmoid', cv=3)
-model.fit(X_train_bal, y_train_bal)
 
-# Cross-validation
-print("\nPerforming 5-fold cross-validation...")
-X_all_vec = vectorizer.transform(X)
-lb_cv = LabelBinarizer()
-y_bin_all = lb_cv.fit_transform(y)
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-cv_scores = cross_val_score(model, X_all_vec, y, cv=cv, scoring='roc_auc')
-print("Cross-Validated ROC-AUC: {:.4f} ± {:.4f}".format(cv_scores.mean(), cv_scores.std()))
+def select_fake_threshold(model, texts, labels):
+    probabilities = model.predict_proba(texts)
+    fake_index = list(model.classes_).index(FAKE_LABEL)
+    fake_targets = (np.asarray(labels) == FAKE_LABEL).astype(int)
+    false_positive_rates, true_positive_rates, thresholds = roc_curve(
+        fake_targets, probabilities[:, fake_index]
+    )
+    finite_thresholds = np.isfinite(thresholds)
+    if not finite_thresholds.any():
+        return 0.5
 
-# Evaluate
-y_pred = model.predict(X_test_vec)
-print("\nTest Accuracy: {:.2f}%".format(accuracy_score(y_test, y_pred) * 100))
-print("Classification Report:\n", classification_report(y_test, y_pred))
+    balanced_accuracies = (
+        true_positive_rates + (1 - false_positive_rates)
+    ) / 2
+    finite_indices = np.flatnonzero(finite_thresholds)
+    best_index = finite_indices[int(np.argmax(balanced_accuracies[finite_thresholds]))]
+    return float(thresholds[best_index])
 
-cm = confusion_matrix(y_test, y_pred, labels=['FAKE DATA', 'REAL DATA'])
-plot_confusion_matrix(cm, classes=['FAKE DATA', 'REAL DATA'])
 
-# ROC-AUC
-lb_test = LabelBinarizer()
-y_test_bin = lb_test.fit_transform(y_test)
-y_proba = model.predict_proba(X_test_vec)[:, 1]
-roc_auc = roc_auc_score(y_test_bin, y_proba)
-print("Test ROC-AUC Score: {:.4f}".format(roc_auc))
+def predict_with_threshold(model, texts, fake_threshold):
+    probabilities = model.predict_proba(texts)
+    classes = list(model.classes_)
+    fake_index = classes.index(FAKE_LABEL)
+    fake_probabilities = probabilities[:, fake_index]
+    predictions = [
+        FAKE_LABEL if probability >= fake_threshold else REAL_LABEL
+        for probability in fake_probabilities
+    ]
+    return predictions, fake_probabilities
 
-# Save
-os.makedirs('Models', exist_ok=True)
-with open('Models/pac_model.pkl', 'wb') as f:
-    pickle.dump(model, f)
-with open('Models/tfidf_vectorizer.pkl', 'wb') as f:
-    pickle.dump(vectorizer, f)
+
+def evaluate(model, name, texts, labels, fake_threshold):
+    predictions, fake_probabilities = predict_with_threshold(model, texts, fake_threshold)
+    fake_targets = (np.asarray(labels) == FAKE_LABEL).astype(int)
+
+    print(f"\n{name} classification report:")
+    print(classification_report(
+        labels,
+        predictions,
+        labels=[FAKE_LABEL, REAL_LABEL],
+        target_names=["Fake", "Real"],
+        zero_division=0,
+    ))
+    print("Confusion matrix [Fake, Real]:")
+    print(confusion_matrix(labels, predictions, labels=[FAKE_LABEL, REAL_LABEL]))
+    print("Balanced accuracy: {:.4f}".format(balanced_accuracy_score(labels, predictions)))
+    print("Fake-class ROC-AUC: {:.4f}".format(
+        roc_auc_score(fake_targets, fake_probabilities)
+    ))
+
+
+def main():
+    train_text, train_labels = load_split("train.tsv")
+    valid_text, valid_labels = load_split("valid.tsv")
+    test_text, test_labels = load_split("test.tsv")
+
+    print("Training label distribution:")
+    print(train_labels.value_counts(normalize=True))
+
+    model = build_model()
+    model.fit(train_text, train_labels)
+
+    fake_threshold = select_fake_threshold(model, valid_text, valid_labels)
+    print(f"Validation-selected Fake threshold (balanced accuracy): {fake_threshold:.4f}")
+    evaluate(model, "Validation", valid_text, valid_labels, fake_threshold)
+    evaluate(model, "Held-out test", test_text, test_labels, fake_threshold)
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    joblib.dump({"model": model, "fake_threshold": fake_threshold}, MODEL_PATH)
+    print(f"\nSaved text-classification pipeline to {MODEL_PATH}")
+
+
+if __name__ == "__main__":
+    main()

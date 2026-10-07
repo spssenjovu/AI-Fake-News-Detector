@@ -10,10 +10,9 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Local imports
-from utils.preprocessing import preprocess_text
 from scrapper.extractor import extract_article
 from routes.prediction import preprocess_and_classify
-from utils.credibility_layer import get_domain_trust, explain_prediction, compute_credibility_score
+from utils.credibility_layer import get_domain_trust
 
 # Load environment variables
 load_dotenv()
@@ -55,11 +54,24 @@ try:
 except MySQLdb.Error as e:
     raise RuntimeError(f"Database connection failed: {e}")
 
-# Load ML model and vectorizer
-MODEL_VERSION = "1.0.0"
+# Load the complete pipeline when available, with support for existing artifacts.
 try:
-    model = joblib.load("Models/pac_model.pkl")
-    vectorizer = joblib.load("Models/tfidf_vectorizer.pkl")
+    model_path = os.path.join("Models", "news_pipeline.pkl")
+    if os.path.exists(model_path):
+        artifact = joblib.load(model_path)
+        if isinstance(artifact, dict) and "model" in artifact:
+            model = artifact["model"]
+            fake_threshold = float(artifact.get("fake_threshold", 0.5))
+        else:
+            model = artifact
+            fake_threshold = 0.5
+        vectorizer = None
+        MODEL_VERSION = "2.0.0"
+    else:
+        model = joblib.load(os.path.join("Models", "pac_model.pkl"))
+        vectorizer = joblib.load(os.path.join("Models", "tfidf_vectorizer.pkl"))
+        fake_threshold = 0.5
+        MODEL_VERSION = "1.0.0"
 except Exception as e:
     raise RuntimeError(f"Model loading failed: {e}")
 
@@ -163,23 +175,25 @@ def predict_news():
             continue
 
         try:
-            predictions = preprocess_and_classify([article], model=model, vectorizer=vectorizer)
-            pred_result = predictions[0]
-
-            credibility = compute_credibility_score(
-                pred_result["confidence"],
-                trust_level,
-                flags=["sensational", "fraud"]
+            predictions = preprocess_and_classify(
+                [article],
+                model=model,
+                vectorizer=vectorizer,
+                fake_threshold=fake_threshold,
             )
+            pred_result = predictions[0]
 
             results.append({
                 "url": url,
                 "classification": pred_result["classification"],
                 "confidence": pred_result["confidence"],
-                "credibility_score": credibility,
+                "confidence_scores": pred_result["confidence_scores"],
                 "trust_level": trust_level,
                 "source": source,
-                "explanation": explain_prediction(["sensational", "fraud", "breaking", "exclusive"]),
+                "explanation": (
+                    "Text-pattern estimate, not an independent fact-check. "
+                    "The model was trained on short claims, so full-article results may be less reliable."
+                ),
                 "model_version": MODEL_VERSION
             })
         except Exception as e:
