@@ -1,98 +1,207 @@
 # AI Fake News Detector
-An innovative machine learning project designed to detect fake news with a focus on transparency, trust signals, and ethical AI practices.
 
-# Table of Contents
-- Overview
-- Features
-- Installation
-- Usage
-- Model Details
-- API Endpoints
-- Contributing
+A Flask-based web application for classifying online news content as likely real or fake using a trained text-classification model. The project combines machine learning, article extraction, and a credibility layer to provide a practical newsroom-style verification workflow.
 
-# Overview
-AI News Detector is a Flask-based application that uses machine learning to classify
-news articles as real or fake. It leverages TF-IDF vectorization and a 
-PassiveAggressiveClassifier to analyse text credibility.
+## Overview
 
-# Features
-- Detects fake news using trained ML models
-- Provides an API for real-time predictions
-- Secure user authentication with Flask
-- Supports multiple text formats for analysis
+This application analyzes article text and estimates whether it is more likely to be fake or real. It uses a TF-IDF feature pipeline with a Passive Aggressive classifier, trained on labeled political claim data and adapted for article-level classification. The system also evaluates source credibility using a lightweight trust layer and can classify one or more URLs through a web endpoint.
 
-# Installation 
+## Features
+
+- Fake/real news classification using a trained ML model
+- URL-based article extraction and preprocessing
+- Source credibility assessment for article domains
+- User registration and login flow
+- Local deployment with Docker support
+- Model persistence for reuse without retraining
+
+## Project Structure
+
+```text
+.
+├── app.py                     # Flask application entry point
+├── main.py                   # Model training pipeline
+├── requirements.txt          # Python dependencies
+├── compose.yaml              # Docker Compose configuration
+├── Dockerfile                # Container definition
+├── .env.example              # Environment template
+├── Models/                   # Saved model artifacts
+├── routes/                   # Route-level application logic
+├── utils/                    # Preprocessing and credibility utilities
+├── scrapper/                 # Article extraction logic
+├── templates/                # Front-end templates
+├── static/                  # Static assets
+├── train.tsv                # Training data
+├── valid.tsv                # Validation data
+├── test.tsv                 # Test data
+├── README.md                 # Project documentation
+└── .gitignore
+```
+
+## Model Details
+
+The system uses a text-based classification pipeline built with:
+
+- TF-IDF vectorization (unigrams and bigrams)
+- Random oversampling for class balancing during training
+- Passive Aggressive Classifier as the final estimator
+- CalibratedClassifierCV for probability estimation
+- Validation-selected fake-class threshold for final decisioning
+
+The model is trained from the LIAR dataset, which contains short claims rather than full news articles. Because of this, predictions on full articles are estimates rather than definitive fact checks.
+
+Training command:
+
+```bash
+python main.py
+```
+
+This writes the trained pipeline to:
+
+```text
+Models/news_pipeline.pkl
+```
 
 ## Prerequisites
-Ensure you have Python installed (recommended: Python 3.8+).
 
-## Setup
-Clone the repository and install dependencies:
-git clone https://github.com/spssenjovu/AI-Fake-News-Detector.git
-cd AI-Fake-News-Detector
-pip install -r requirements.txt
+- Python 3.10+
+- MySQL database
+- Docker (optional, for containerized setup)
+- Virtual environment recommended
 
-## Run with Docker Compose
-Copy `.env.example` to `.env`, replace the placeholder passwords, and set fresh
-application keys. Generate the keys with:
+## Environment Configuration
 
-```powershell
+Create a local environment file based on `.env.example` and populate the variables required by the app.
+
+Example configuration:
+
+```env
+SECRET_KEY=your_secret_key
+ENCRYPTION_KEY=your_fernet_key
+MYSQL_HOST=localhost
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DB=your_database_name
+```
+
+Generate secure values:
+
+```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Use the first value for `SECRET_KEY` and the second for `ENCRYPTION_KEY` in `.env`,
-then start the services:
+## Installation
 
-```powershell
+Clone the repository:
+
+```bash
+git clone https://github.com/spssenjovu/AI-Fake-News-Detector.git
+cd AI-Fake-News-Detector
+```
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+.venv\Scripts\activate   # Windows
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Running the Application
+
+Start the Flask server:
+
+```bash
+python app.py
+```
+
+Then open the app in your browser:
+
+```text
+http://127.0.0.1:5000
+```
+
+### Docker Setup
+
+To run with Docker Compose:
+
+```bash
 docker compose up --build
 ```
 
-The app is available at http://localhost:5000. The Compose file mounts the project
-directory into the container, so the model files under `Models/` are available at runtime.
+The app will be available at:
 
-# Usage 
+```text
+http://localhost:5000
+```
 
-## Running the Application Locally
+## Application Flow
 
-This project is currently configured to run as a local Flask web application. To launch the AI News Detector:
+1. User registers or logs in
+2. User enters a news URL in the application
+3. The app extracts article text and preprocesses it
+4. The model predicts whether the content is likely fake or real
+5. The system returns the classification and confidence score
+6. The credibility layer adds a trust signal derived from the domain
 
-Start the server by typing:
-python app.py
+## API Endpoints
 
-Open browser by navigating to:
-http://127.0.0.1:5000
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/` | GET | Login page |
+| `/register` | GET | Registration page |
+| `/submit-login` | POST | Authenticate user |
+| `/submit-register` | POST | Create a new user account |
+| `/home` | GET | Main application page |
+| `/predict-news` | GET | Classify one or more article URLs |
+| `/about` | GET | About page |
+| `/settings` | GET | User settings page |
 
-The application is designed for local use only. It does not currently support public deployment or cloud hosting. All predictions and interactions occur within the local environment.
+### Example Prediction Request
 
+```bash
+curl "http://localhost:5000/predict-news?urls=https://example.com/article" 
+```
 
-## Example API Call
-curl -X POST http://localhost:5000/predict -H "Content-Type: application/json" -d '{"text": "Breaking news: AI is taking over!"}'
+## Usage Notes
 
-# Model Details
-- Text features: TF-IDF word unigrams and bigrams
-- Classifier: calibrated Passive-Aggressive model with training-only oversampling and a validation-selected Fake-class threshold
-- Dataset: LIAR train, validation, and test splits, kept separate during evaluation
-- Training command: `python main.py` (writes `Models/news_pipeline.pkl`)
+- The application is intended for local development and experimentation.
+- Predictions are probabilistic estimates and should not be treated as definitive truth verification.
+- Article classification quality depends on text quality, source content, and dataset alignment.
+- The project is best suited for educational, research, and prototype use cases.
 
-The model maps LIAR's six truthfulness labels into two broad classes. LIAR contains
-short political claims, not full news articles; predictions on scraped articles are
-therefore estimates and are not independent fact-checks. The displayed source
-directory match is separate context and does not affect the model prediction.
+## Limitations
 
-# API Endpoints
-| Endpoint  | Method | Description                  |
-| ----------| -------| -----------------------------|
-| /predict-news | GET | Extracts and classifies one or more article URLs|
-| /register | POST | Registers a new user           |
-| /login    | POST | Authenticates user login       |
+- The model is trained on short political statements, not a broad cross-domain news corpus.
+- Full-article classification may be less reliable than claim-level classification.
+- Source trust signals are heuristics and should be interpreted as supporting context, not standalone evidence.
+- The project does not yet provide a production-grade security or deployment model for public internet use.
 
-# Contributing
-Contributions are welcome! Please follow these steps:
+## Contributing
 
-1. Fork the repository
-2. Create a new branch (git checkout -b feature-branch)
-3. Commit changes (git commit -m "Added new feature")
-4. Push to GitHub (git push origin feature-branch)
-5. Open a Pull Request
+Contributions are welcome. To contribute:
+
+```bash
+git checkout -b feature/your-feature-name
+# make your changes
+git commit -m "Add your feature"
+git push origin feature/your-feature-name
+```
+
+Then open a pull request in the repository.
+
+## License
+
+This project does not currently include a license file. If you intend to share or distribute it publicly, consider adding an open-source license such as MIT or Apache 2.0.
+
+## Contact
+
+For questions or collaboration opportunities, contact the repository owner or open an issue in the project.
 
