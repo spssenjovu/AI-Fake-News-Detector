@@ -9,7 +9,6 @@ An innovative machine learning project designed to detect fake news with a focus
 - Model Details
 - API Endpoints
 - Contributing
-- License
 
 # Overview
 AI News Detector is a Flask-based application that uses machine learning to classify
@@ -17,10 +16,10 @@ news articles as real or fake. It leverages TF-IDF vectorization and a
 PassiveAggressiveClassifier to analyse text credibility.
 
 # Features
-✅ Detects fake news using trained ML models
-✅ Provides an API for real-time predictions
-✅ Secure user authentication with Flask
-✅ Supports multiple text formats for analysis
+- Detects fake news using trained ML models
+- Provides an API for real-time predictions
+- Secure user authentication with Flask
+- Supports multiple text formats for analysis
 
 # Installation 
 
@@ -54,10 +53,18 @@ directory into the container, so the model files under `Models/` are available a
 
 # Usage 
 
-## Run the Flask App
+## Running the Application Locally
+
+This project is currently configured to run as a local Flask web application. To launch the AI News Detector:
+
+Start the server by typing:
 python app.py
 
-Access the web interface at http://localhost:5000
+Open browser by navigating to:
+http://127.0.0.1:5000
+
+The application is designed for local use only. It does not currently support public deployment or cloud hosting. All predictions and interactions occur within the local environment.
+
 
 ## Example API Call
 curl -X POST http://localhost:5000/predict -H "Content-Type: application/json" -d '{"text": "Breaking news: AI is taking over!"}'
@@ -89,5 +96,3 @@ Contributions are welcome! Please follow these steps:
 4. Push to GitHub (git push origin feature-branch)
 5. Open a Pull Request
 
-# License 
-This project is licensed under the MIT License
